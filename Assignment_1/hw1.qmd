@@ -1,11 +1,11 @@
 ---
 title: "PSTAT220A Homework 1"
-format: 
-  pdf:
-    geometry:
-      - top=30mm
-      - left=30mm
-execute:      
+author: "Houpu Li"
+format:
+  html:
+    embed-resources: true
+    toc: true
+execute:
   echo: false
 date: "Due 10/11/2026"
 ---
@@ -14,28 +14,90 @@ date: "Due 10/11/2026"
 library(tidyverse)
 library(lubridate)
 library(patchwork)
+library(MASS)
+select <- dplyr::select  # MASS masks dplyr::select
 ```
 
 
 ## Question 1 (25 pt)
 
-Investigate the relationship between bodyweight, height and age in the data in `height_weight.csv`.  Answer the following questions, supporting your answers with appropriate polished graphs.
+> Investigate the relationship between bodyweight, height and age in the data in `height_weight.csv`.  Answer the following questions, supporting your answers with appropriate polished graphs.
 
-a. Make a plots comparing height and weight, colored by age, and faceted by gender.  Describe how weight varies as a function of height (e.g. is it approximiately linear, quadratic, etc?).  Also comment on the variance of weight given age at different ages.
-
-a. Find a transformation of weight that makes the relationship between height and weight more linear.  Make the above plots replacing weight with the transformed weight.  
-
-a. At younger ages, the average heights of girls and boys are the same.  At what age does the average height of boys diverge from the average height of girls?  Support your answer with a clear and well constructed plot. Hint: you may want to use `geom_smooth` to more clearly visualize trends.
+  > - a. Make a plots comparing height and weight, colored by age, and faceted by gender.  Describe how weight varies as a function of height (e.g. is it approximiately linear, quadratic, etc?).  Also comment on the variance of weight given age at different ages.
+  > - b. Find a transformation of weight that makes the relationship between height and weight more linear.  Make the above plots replacing weight with the transformed weight.
+  > - c. At younger ages, the average heights of girls and boys are the same.  At what age does the average height of boys diverge from the average height of girls?  Support your answer with a clear and well constructed plot. Hint: you may want to use `geom_smooth` to more clearly visualize trends.
 
 ```{r, message=FALSE}
 body_df <- read_csv("height_weight.csv")
 # Your R code here
+body_df <- body_df |> drop_na(height, weight)
 ```
+
+### (a)
+
+```{r, warning=FALSE}
+ggplot(body_df, aes(x = height, y = weight, color = age)) +
+  geom_point(size = 0.6, alpha = 0.5) +
+  facet_wrap(~ sex) +
+  scale_color_viridis_c() +
+  labs(x = "Height (cm)", y = "Weight (kg)", color = "Age (years)",
+       title = "Weight vs. height by sex") +
+  theme_bw()
+```
+
+```{r}
+# SD of weight within age groups
+body_df |>
+  mutate(age_group = cut(age, breaks = c(0, 5, 10, 15, 20, 40, 60, 80),
+                         include.lowest = TRUE)) |>
+  group_by(age_group) |>
+  summarise(n = n(), sd_weight = round(sd(weight), 1)) |>
+  knitr::kable(col.names = c("Age group", "n", "SD of weight (kg)"))
+```
+
+Weight increases with height in a curved way, rather than linearly. The curve is relatively flat for shorter heights (young children) and gets steeper for taller heights, which is roughly what an exponential curve would look like. The pattern is similar for both sexes.  
+The variance of weight given age is not constant. It is very small for young children (SD about 4.5 kg for ages 0–5), increases quickly through childhood and adolescence, and is largest for adults aged 20–60 (SD about 24 kg). It becomes slightly smaller again for ages 60–80.
+
+### (b)
+
+```{r, warning=FALSE}
+ggplot(body_df, aes(x = height, y = log(weight), color = age)) +
+  geom_point(size = 0.6, alpha = 0.5) +
+  facet_wrap(~ sex) +
+  scale_color_viridis_c() +
+  labs(x = "Height (cm)", y = "log(Weight)", color = "Age (years)",
+       title = "log(weight) vs. height by sex") +
+  theme_bw()
+```
+
+A log transformation of weight makes the relationship much closer to linear. And the log also makes the variance spread of weight more narrow.
+
+### (c)
+
+```{r, message=FALSE}
+kids_df <- body_df |> filter(age <= 30)
+
+mean_height <- kids_df |>
+  group_by(age, sex) |>
+  summarise(mean_height = mean(height), .groups = "drop")
+
+ggplot(kids_df, aes(x = age, y = height, color = sex)) +
+  geom_smooth(method = "loess") +
+  geom_point(data = mean_height, aes(y = mean_height), size = 2) +
+  geom_vline(xintercept = 11, linetype = "dashed") +
+  scale_x_continuous(breaks = seq(0, 30, 2)) +
+  labs(x = "Age (years)", y = "Height (cm)", color = "Sex",
+       title = "Average height by age, ages 0-30",
+       subtitle = "Points are mean heights at each age and dashed line at age 11") +
+  theme_bw()
+```
+
+The mean heights of boys and girls are almost the same up to about age 11. Starting around age 12, boys' average height begins to pull away from girls'. The gap grows quickly between ages 12 and 15, as girls' height keep at about 160 cm while boys continue growing to about 175 cm. Therefore, the mean heights of boys and girls begin to diverge at around age 11–12.
+
 
 ## Question 2 (20 pt)
 
-The following data are failure times in hours of 45 transmissions from caterpillar tractors belonging to a particular American company:
-
+> The following data are failure times in hours of 45 transmissions from caterpillar tractors belonging to a particular American company:
 ```{r, echo=TRUE}
 failure_times <- c(4381, 3953, 2603, 2320, 1161, 3286, 6914, 4007, 3168,
                    2376, 7498, 3923, 9460, 4525, 2168, 1288, 5085, 2217,
@@ -44,26 +106,115 @@ failure_times <- c(4381, 3953, 2603, 2320, 1161, 3286, 6914, 4007, 3168,
                    6052, 2420, 5556, 309, 1295, 3266, 6679, 1711, 5931)
 ```
 
-Use QQ-plots to examine the applicability of the following models for the probability distribution of failure time: normal, lognormal, exponential and Gamma (hint: check out the function `fitdistr` in the library MASS to fit these distributions. You may rescale the data if you have numerical problems). For the model that fits best (explain how you determine which model fits best), plot the PDF and the kernel density estimate of the data on the same plot.
+> Use QQ-plots to examine the applicability of the following models for the probability distribution of failure time: normal, lognormal, exponential and Gamma (hint: check out the function `fitdistr` in the library MASS to fit these distributions. You may rescale the data if you have numerical problems). 
 
 ```{r}
 # Your R code here
+x <- failure_times / 1000  # rescale to thousands of hours
+
+fit_norm  <- fitdistr(x, "normal")
+fit_lnorm <- fitdistr(x, "lognormal")
+fit_exp   <- fitdistr(x, "exponential")
+fit_gamma <- suppressWarnings(fitdistr(x, "gamma"))
+
+# Theoretical quantiles at the plotting positions
+p <- ppoints(length(x))
+q_df <- tibble(
+  sample = rep(sort(x), 4),
+  theoretical = c(
+    qnorm(p, fit_norm$estimate["mean"], fit_norm$estimate["sd"]),
+    qlnorm(p, fit_lnorm$estimate["meanlog"], fit_lnorm$estimate["sdlog"]),
+    qexp(p, fit_exp$estimate["rate"]),
+    qgamma(p, fit_gamma$estimate["shape"], fit_gamma$estimate["rate"])
+  ),
+  model = rep(c("Normal", "Lognormal", "Exponential", "Gamma"), each = length(x))
+)
+
+ggplot(q_df, aes(x = theoretical, y = sample)) +
+  geom_point() +
+  geom_abline(intercept = 0, slope = 1, color = "red") +
+  facet_wrap(~ factor(model, levels = c("Normal", "Lognormal", "Exponential", "Gamma")),
+             scales = "free_x") +
+  labs(x = "Theoretical Failure Times",
+       y = "Actual Failure Times (1000 hours)",
+       title = "QQ-plots of Actual Failure Times against Theoretical Values") +
+  theme_bw()
+```
+
+```{r}
+tibble(
+  Model = c("Normal", "Lognormal", "Exponential", "Gamma"),
+  `Log-likelihood` = c(fit_norm$loglik, fit_lnorm$loglik, fit_exp$loglik, fit_gamma$loglik),
+  AIC = c(AIC(fit_norm), AIC(fit_lnorm), AIC(fit_exp), AIC(fit_gamma))
+) |>
+  knitr::kable(digits = 2)
+```
+
+> For the model that fits best (explain how you determine which model fits best), plot the PDF and the kernel density estimate of the data on the same plot.
+
+I rescaled the data to 1000 hours and fit each model by maximum likelihood with `fitdistr`. Each QQ-plot compares the actual failure time with the estimated theoretical
+quantiles of the fitted distribution, so a good model puts the points close to the red 45° line.
+
+And then I compared the log-likelihood and AIC of the four models. The model with the highest log-likelihood and lowest AIC is considered the best fit. so I pick the **Gamma** distribution as the best fit.
+
+```{r}
+grid <- tibble(x = seq(0, 11, length.out = 300),
+               density = dgamma(x, fit_gamma$estimate["shape"], fit_gamma$estimate["rate"]))
+
+ggplot(tibble(x = x), aes(x = x)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 12,
+                 fill = "grey85", color = "white") +
+  geom_density(aes(color = "Kernel density estimate"), linewidth = 1) +
+  geom_line(data = grid, aes(y = density, color = "Fitted Gamma PDF"), linewidth = 1) +
+  scale_color_manual(values = c("Kernel density estimate" = "steelblue",
+                                "Fitted Gamma PDF" = "firebrick")) +
+  labs(x = "Failure time (1000 hours)", y = "Density", color = NULL,
+       title = "Fitted Gamma PDF vs. Kernel Density Estimate") +
+  theme_bw() +
+  theme(legend.position = "bottom")
 ```
 
 ## Question 3 (15 pt)
 
-Generate 600 random samples from the normal distribution with mean 10 and standard deviation 5. Divide these 600 samples into 100 groups each with 6 samples. Compute the statistic $(\bar{X} - 10)/\sqrt{S^2/6}$ for each group. What kind of distribution do you expect this statistic to follow?
+> Generate 600 random samples from the normal distribution with mean 10 and standard deviation 5. Divide these 600 samples into 100 groups each with 6 samples. Compute the statistic $(\bar{X} - 10)/\sqrt{S^2/6}$ for each group. What kind of distribution do you expect this statistic to follow?
 
-Using the 100 such statistics verify that the empirical distribution of these statistics actually follows the expected distribution.
+| Quantity | Distribution | Reason |
+|---|---|---|
+| Raw data $X_i$ | $N(10,\ 5^2)$ | Given in the problem: mean 10, variance $5^2 = 25$, sd 5 |
+| Sample mean $\bar{X}$ (6 per group) | $N(10,\ 5^2/6)$ | The mean stays at 10, but averaging 6 independent values will divide the variance by 6, so $\text{SD}(\bar{X}) = 5/\sqrt{6} \approx 2.04$ |
+| Statistic $\dfrac{\bar{X}-10}{\sqrt{S^2/6}}$ | $t_5$ (t-distribution, 5 df) | Subtracting the true mean 10 centers it at 0. Using the estimated $S^2$ instead of the true $\sigma^2$ adds extra variability, so it follows $t_5$ rather than $N(0,1)$ |
+
+> Using the 100 such statistics verify that the empirical distribution of these statistics actually follows the expected distribution.
 
 ```{r}
 # Your R code here
+set.seed(42)
+samples <- matrix(rnorm(600, mean = 10, sd = 5), nrow = 100, ncol = 6)  # one group per row
+
+xbar <- rowMeans(samples)
+s2 <- apply(samples, 1, var)
+t_stat <- (xbar - 10) / sqrt(s2 / 6)
 ```
 
+```{r}
+p1 <- ggplot(tibble(t = t_stat), aes(x = t)) +
+  geom_histogram(aes(y = after_stat(density)), bins = 20,
+                 fill = "grey80", color = "white") +
+  geom_function(aes(color = "t (df = 5)"), fun = dt, args = list(df = 5), linewidth = 1) +
+  geom_function(aes(color = "N(0, 1)"), fun = dnorm, linetype = "dashed") +
+  scale_color_manual(values = c("t (df = 5)" = "firebrick", "N(0, 1)" = "steelblue")) +
+  labs(x = "Statistic", y = "Density", color = NULL, title = "Histogram vs. t(5) density") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+
+p1
+```
+
+The grey histogram shows the 100 simulated statistics. The red line is the t(5) density, which is the expected distribution. The blue dashed line is the standard normal density N(0, 1), shown for comparison. The histogram closely follows the red t(5) curve, so the empirical distribution of the statistics is consistent with a t-distribution with 5 degrees of freedom.
 
 ## Question 4 (40 pt)
 
-This question considers the analysis of U.S. birth data.  The data consists of the numbers of infants born in each month from 2016 through 2023 separated by state and race/ethnicity.  The data also includes the number of women age 15-44 in each state and race/ethnicity (the `denom` variables).  The prefix in the column variables indicates the race/ethnicity and the suffix indicates whether the variable tracks births or number of women.
+> This question considers the analysis of U.S. birth data.  The data consists of the numbers of infants born in each month from 2016 through 2023 separated by state and race/ethnicity.  The data also includes the number of women age 15-44 in each state and race/ethnicity (the `denom` variables).  The prefix in the column variables indicates the race/ethnicity and the suffix indicates whether the variable tracks births or number of women.
 
 ```{r, echo=TRUE}
 birth_data <- read_csv("birth_data.csv", show_col_types = FALSE)
@@ -71,29 +222,86 @@ head(birth_data)
 ```
 
 
-a. Use `pivot_longer` to make the data tidy.  Hint: you need to simultaneously pivot on `birth` columns and `denom` columns.  To do so read the documentation for `pivot_longer` and use `.value` in the `names_to` argument (see e.g. the last example in the documentation).  It might also help to use `names_sep`.  After tidying, your data set should have 7 columns: `state`, `state_code`, `year`, `month`, `race`, `births` and `denom`. Print the first 10 rows and last 10 rows of your tidy data.
+  > - a. Use `pivot_longer` to make the data tidy.  Hint: you need to simultaneously pivot on `birth` columns and `denom` columns.  To do so read the documentation for `pivot_longer` and use `.value` in the `names_to` argument (see e.g. the last example in the documentation).  It might also help to use `names_sep`.  After tidying, your data set should have 7 columns: `state`, `state_code`, `year`, `month`, `race`, `births` and `denom`. Print the first 10 rows and last 10 rows of your tidy data.
 
-```{r}
+```{r, echo=TRUE}
 ## Your code here
+birth_tidy <- birth_data |>
+  pivot_longer(cols = c(ends_with("_births"), ends_with("_denom")),
+               names_to = c("race", ".value"),
+               names_sep = "_")
+
+head(birth_tidy, 10)
+tail(birth_tidy, 10)
 ```
 
 
-b.  Create two new variable: `date` and `birth_rate`.  To create `date`, use the `my` function from the `lubridate` package which takes a string consisting of the month followed by the year and returns the appropriate date object. `birth_rate` should have units of births per 1000 women 15-44 per year (note: don't forget to adjust for the fact that we have monthly data.  As a reference, the national fertility rate is about 55 births per 1000 women aged 15-44 per year). Use the tidy data you just computed to plot the birth rate in California vs `date`.  You should have lines with distinct colors for the birth rate in each race and overall.  Which race/ethnicities tend to have the highest birth rates? Lowest?
+  > - b.  Create two new variable: `date` and `birth_rate`.  To create `date`, use the `my` function from the `lubridate` package which takes a string consisting of the month followed by the year and returns the appropriate date object. `birth_rate` should have units of births per 1000 women 15-44 per year (note: don't forget to adjust for the fact that we have monthly data.  As a reference, the national fertility rate is about 55 births per 1000 women aged 15-44 per year). Use the tidy data you just computed to plot the birth rate in California vs `date`.  You should have lines with distinct colors for the birth rate in each race and overall.  Which race/ethnicities tend to have the highest birth rates? Lowest?
 
-```{r}
+```{r, echo=TRUE}
 # Your code here
+birth_tidy <- birth_tidy |>
+  mutate(date = my(paste(month, year)),
+         birth_rate = births / denom * 1000 * 12)  # monthly -> per year
+
+race_labels <- c(all = "All", white = "White", black = "Black",
+                 hisp = "Hispanic", otherrace = "Other race")
+
+ca_df <- birth_tidy |>
+  filter(state == "California", !is.na(birth_rate))
+
+ggplot(ca_df, aes(x = date, y = birth_rate, color = race)) +
+  geom_line() +
+  scale_color_brewer(palette = "Set1", labels = race_labels) +
+  labs(x = NULL, y = "Births per 1000 women 15-44 per year", color = "Race",
+       title = "Birth rate in California by race") +
+  theme_bw()
 ```
 
-c.  Create a new variable using `mutate` which corresponds to the *relative* birth rate for each race category.  The relative birth rate should be computed by grouping by race, taking the birth rate and dividing by the mean birth rate for that race over the full range of data and then ungrouping again. Plot the relative birth rates for all races on the same plot. What new observations do you make about the data when plotting the relative birth rate? Are any patterns clearer in this plot than they were in the previous plot?
+In California, **Other race** and **Hispanic** women have the highest birth rates, and **Black** and **White** women have the lowest birth rates.
 
-```{r}
+
+  > - c.  Create a new variable using `mutate` which corresponds to the *relative* birth rate for each race category.  The relative birth rate should be computed by grouping by race, taking the birth rate and dividing by the mean birth rate for that race over the full range of data and then ungrouping again. Plot the relative birth rates for all races on the same plot. What new observations do you make about the data when plotting the relative birth rate? Are any patterns clearer in this plot than they were in the previous plot?
+
+```{r, echo=TRUE}
 ## Your code here
+ca_df <- ca_df |>
+  group_by(race) |>
+  mutate(rel_birth_rate = birth_rate / mean(birth_rate)) |>
+  ungroup()
+
+ggplot(ca_df, aes(x = date, y = rel_birth_rate, color = race)) +
+  geom_line() +
+  geom_hline(yintercept = 1, linetype = "dashed") +
+  scale_color_brewer(palette = "Set1", labels = race_labels) +
+  labs(x = NULL, y = "Birth rate / mean birth rate for the race", color = "Race",
+       title = "Relative birth rate in California by race") +
+  theme_bw()
 ```
 
+Dividing by each racial group's own mean puts all groups on a comparable scale, allowing us to compare their relative trends rather than their absolute levels. All racial groups show a similar decline from 2016 to 2022, and their month-to-month fluctuations generally move together. There is also a sharp drop in early 2021, possibly related to the COVID-19 pandemic.
 
-d. Make a visualization of your choice that clearly highlights something about the data that was not evident in the previous plots.  For example, you can explore seasonality in the trends or variation across race and/or states. Describe something that you learned from your plot. The best visualizations will be shared in class (given your approval).
+  > - d. Make a visualization of your choice that clearly highlights something about the data that was not evident in the previous plots.  For example, you can explore seasonality in the trends or variation across race and/or states. Describe something that you learned from your plot. The best visualizations will be shared in class (given your approval).
 
-```{r}
+```{r, echo=TRUE}
 ## Your code here
+# National births per day, by calendar month (each line is a year)
+national_df <- birth_tidy |>
+  filter(race == "all", year <= 2022) |>
+  group_by(year, month, date) |>
+  summarise(births = sum(births), .groups = "drop") |>
+  mutate(births_per_day = births / days_in_month(date),
+         month = factor(month, levels = month.name))
+
+ggplot(national_df, aes(x = month, y = births_per_day, color = year, group = year)) +
+  geom_line() +
+  geom_point(size = 1) +
+  scale_color_viridis_c(option = "plasma", end = 0.9, breaks = 2016:2022) +
+  scale_x_discrete(labels = month.abb) +
+  labs(x = NULL, y = "Births per day (U.S. total)", color = "Year",
+       title = "Seasonality of U.S. births, 2016-2022",
+       subtitle = "Monthly births divided by the number of days in the month") +
+  theme_bw()
 ```
 
+To compare months fairly, I divided each month's U.S. births by the number of days in that month. Otherwise February looks low just because it is short. The plot shows two patterns. First, there is clear seasonality: births per day are lowest in January–May and peak in August–September every year. Second, the number of births declines over time, as the curves for later years generally lie below those for earlier years except for the 2021 curve(I guess this is due to the impact of the COVID-19 pandemic).
