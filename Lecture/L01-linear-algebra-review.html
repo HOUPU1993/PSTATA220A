@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>线性代数复习 · PSTAT 220A</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false,macros:{'\\Lcol':'\\mathcal{L}_{\\text{col}}','\\R':'\\mathbb{R}'}});"></script>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+
+<nav class="toc">
+  <a class="home" href="../index.html">← PSTAT 220A 主页</a>
+  <ol>
+    <li><a href="#s0">符号速查表</a></li>
+    <li><a href="#s1">欧氏空间与向量</a></li>
+    <li><a href="#s2">内积与正定矩阵</a></li>
+    <li><a href="#s3">矩阵 X 与列空间</a></li>
+    <li><a href="#s4">标准正交基与 Gram-Schmidt</a></li>
+    <li><a href="#s5">正交表示</a></li>
+    <li><a href="#s6">正交补（笔记里的 Null Space）</a></li>
+    <li><a href="#s7">秩与可逆</a></li>
+    <li><a href="#s8">投影矩阵：推导 β̂</a></li>
+    <li><a href="#s9">投影矩阵的性质</a></li>
+    <li><a href="#s10">谱分解（特征分解）</a></li>
+    <li><a href="#s11">矩阵的幂与平方根</a></li>
+    <li><a href="#s12">迹 trace</a></li>
+    <li><a href="#s13">总结：全部串起来</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="page">
+  <h1>线性代数复习（Linear Algebra Review）</h1>
+  <p class="sub">PSTAT 220A 课堂笔记逐页中文讲解 · 共 6 页手写笔记，按原顺序一个不漏</p>
+</header>
+
+<section>
+  <h2>怎么读这一页</h2>
+  <p>每一节都按同样的顺序：</p>
+  <div class="box note"><span class="label">📝 笔记原文</span><p>老师手写笔记里写了什么（转成公式）。</p></div>
+  <div class="box plain"><span class="label">白话解释</span><p>这句话到底在说什么。</p></div>
+  <div class="box ex"><span class="label">小例子</span><p>用具体数字算一遍，所有数字都验算过。</p></div>
+  <div class="box why"><span class="label">在统计里有什么用</span><p>它和回归、协方差等后面内容的关系。</p></div>
+  <div class="box warn"><span class="label">注意</span><p>笔记里的小笔误、或笔记没写但必须知道的前提条件。</p></div>
+  <p>标了「补充」的内容是笔记里只提了名字、没展开的东西，我补上了解释，方便理解。</p>
+</section>
+
+<!-- ============ 0 ============ -->
+<section id="s0">
+  <h2><span class="num">0</span>符号速查表</h2>
+  <p class="page-ref">先把「天书」里的符号翻译成人话</p>
+  <div class="table-wrap">
+  <table class="glossary">
+    <tr><th>符号</th><th>读法 / 意思</th></tr>
+    <tr><td>$\R$</td><td>全体实数</td></tr>
+    <tr><td>$\R^n$</td><td>由 $n$ 个实数排成的向量组成的空间，例如 $\R^3$ 就是三维空间</td></tr>
+    <tr><td>$x \in \R^n$</td><td>「$x$ 属于 $\R^n$」，即 $x$ 是一个有 $n$ 个分量的向量</td></tr>
+    <tr><td>$x'$ 或 $x^T$</td><td>转置（transpose）：把列变成行。笔记里两种写法混用，意思完全一样</td></tr>
+    <tr><td>$X_{n\times p}$</td><td>$X$ 是一个 $n$ 行 $p$ 列的矩阵</td></tr>
+    <tr><td>$\sum_{i=1}^p a_i$</td><td>求和：$a_1 + a_2 + \dots + a_p$</td></tr>
+    <tr><td>s.t.</td><td>such that，「使得」</td></tr>
+    <tr><td>iff</td><td>if and only if，「当且仅当」，两边互相推出</td></tr>
+    <tr><td>$\forall$</td><td>for all，「对所有的」</td></tr>
+    <tr><td>$\Rightarrow$ / $\Leftrightarrow$</td><td>推出 / 等价</td></tr>
+    <tr><td>$\perp$</td><td>垂直（正交）</td></tr>
+    <tr><td>$I$ 或 $I_p$</td><td>单位矩阵：对角线是 1，其余是 0；$I_p$ 是 $p\times p$ 的</td></tr>
+    <tr><td>$\delta_{ij}$</td><td>Kronecker delta：$i=j$ 时为 1，否则为 0</td></tr>
+    <tr><td>$\langle x, y\rangle$</td><td>$x$ 和 $y$ 的内积</td></tr>
+    <tr><td>$\Lcol(X)$</td><td>$X$ 的列空间（column space）</td></tr>
+    <tr><td>$\Gamma,\ \gamma$</td><td>大写 / 小写 Gamma，这里用来表示正交矩阵和它的列向量</td></tr>
+    <tr><td>$\Lambda,\ \lambda$</td><td>大写 / 小写 Lambda，这里表示特征值组成的对角矩阵和特征值</td></tr>
+    <tr><td>$\Sigma$</td><td>（作矩阵时）协方差矩阵；（作运算时）求和号。看上下文</td></tr>
+    <tr><td>$\hat y,\ \hat\beta$</td><td>「y hat」「beta hat」：估计值 / 拟合值</td></tr>
+    <tr><td>$\dim$</td><td>dimension，维数</td></tr>
+    <tr><td>$\operatorname{tr}$</td><td>trace，迹（对角线元素之和）</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 1 ============ -->
+<section id="s1">
+  <h2><span class="num">1</span>欧氏空间与向量</h2>
+  <p class="page-ref">笔记第 1 页上半部分</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>Euclidean Space：$\R^n$，$x \in \R^n$</p>
+    $$x = \begin{pmatrix} x_1 \\ \vdots \\ x_n \end{pmatrix}\quad \text{（column vector，列向量）}$$
+    $$x + y = \begin{pmatrix} x_1 + y_1 \\ \vdots \\ x_n + y_n \end{pmatrix},\qquad
+      cx = \begin{pmatrix} c x_1 \\ \vdots \\ c x_n \end{pmatrix},\quad c \in \R$$
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>欧氏空间 $\R^n$</b>：就是我们熟悉的「$n$ 维空间」。$\R^2$ 是平面，$\R^3$ 是立体空间，$\R^n$ 是推广到 $n$ 维（画不出来，但运算规则一样）。</p>
+    <p><b>向量</b>：一列数字。默认竖着写，叫<b>列向量</b>。在统计里，一个变量的 $n$ 个观测值就是 $\R^n$ 里的一个向量。</p>
+    <p>笔记规定了两种基本运算：</p>
+    <ul>
+      <li><b>向量加法</b>：对应位置相加。</li>
+      <li><b>数乘</b>（scalar multiplication）：每个分量都乘以同一个实数 $c$。几何上就是把箭头拉长/缩短（$c$ 为负时反向）。</li>
+    </ul>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>$x = (1, 2, 3)'$，$y = (4, 0, -1)'$（这里写成行再加 $'$ 只是为了省地方，实际是列向量）。</p>
+    $$x + y = \begin{pmatrix}5\\2\\2\end{pmatrix},\qquad 2x = \begin{pmatrix}2\\4\\6\end{pmatrix}$$
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2">
+  <h2><span class="num">2</span>内积与正定矩阵</h2>
+  <p class="page-ref">笔记第 1 页中部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>Inner Product：$\langle x, y\rangle_A = x'Ay$，其中 $A_{n\times n}$ 是对称、正定（symmetric, positive definite）矩阵。</p>
+    <p>pos. def 的意思是：$x'Ax > 0$ iff $x \neq 0$。</p>
+    <p>For now, $A = I$。（若 $A = \Sigma^{-1}$，$\Sigma$ 为协方差矩阵 cov，则得到 "Mahalanobis Distance"）</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>内积</b>是把两个向量变成一个数的运算，用来衡量「长度」和「夹角」。最普通的内积（$A = I$ 时）就是：</p>
+    $$\langle x, y\rangle = x'y = x_1y_1 + x_2y_2 + \dots + x_ny_n$$
+    <p>即对应位置相乘再相加（点积）。它的两个关键用途：</p>
+    <ul>
+      <li><b>长度</b>：$\|x\| = \sqrt{\langle x, x\rangle}$。</li>
+      <li><b>垂直</b>：$\langle x, y\rangle = 0$ 就说 $x$ 和 $y$ <b>正交（垂直）</b>。这是后面所有内容的核心。</li>
+    </ul>
+    <p>笔记里写的是更一般的版本 $x'Ay$：中间夹一个矩阵 $A$，相当于「换了一把尺子」去量长度和角度。为了让它像一把合格的尺子，$A$ 需要满足：</p>
+    <ul>
+      <li><b>对称</b>（$A' = A$）：保证 $\langle x,y\rangle_A = \langle y,x\rangle_A$，谁在前谁在后无所谓。</li>
+      <li><b>正定</b>：任何非零向量的「长度平方」$x'Ax$ 都是正的；只有零向量长度是 0。</li>
+    </ul>
+    <p>「For now, $A = I$」的意思是：<b>本课目前都用最普通的点积</b>，所以后面看到 $\langle x,y\rangle$ 就理解为 $x'y$。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>普通内积：$x = (1,2,3)'$，$y = (4,0,-1)'$，$x'y = 4 + 0 - 3 = 1$。</p>
+    <p>正定矩阵：$A = \begin{pmatrix}2&0\\0&1\end{pmatrix}$，则 $x'Ax = 2x_1^2 + x_2^2$，只要 $x \ne 0$ 就一定 $>0$，所以 $A$ 正定。</p>
+    <p>换尺子后的内积：$x = y = (1,1)'$，普通内积 $x'y = 2$，而 $\langle x, y\rangle_A = 2\cdot1\cdot1 + 1\cdot1\cdot1 = 3$。</p>
+    <p>反例：$B = \begin{pmatrix}1&0\\0&-1\end{pmatrix}$，取 $x = (0,1)'$ 得 $x'Bx = -1 < 0$，所以 $B$ <b>不是</b>正定的。</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用：Mahalanobis 距离（补充）</span>
+    <p>令 $A = \Sigma^{-1}$（协方差矩阵的逆），距离 $\sqrt{(x-\mu)'\Sigma^{-1}(x-\mu)}$ 就是 <b>Mahalanobis 距离</b>。它会自动考虑各变量的方差和相关性：方差大的方向上「走一步」不算远，方差小的方向上走一步就算很远。多元正态分布的密度函数指数部分就是它。</p>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3">
+  <h2><span class="num">3</span>矩阵 X 与列空间</h2>
+  <p class="page-ref">笔记第 1 页下半部分</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    $$X_{n\times p} = \begin{pmatrix} | & | & & | \\ x_1 & x_2 & \cdots & x_p \\ | & | & & | \end{pmatrix},\quad x_i \text{ is an } n\text{-vector}$$
+    <p>Linear space spanned by $X$：$\Lcol(X)$，"column space"</p>
+    $$\Lcol(X) = \Big\{ v = \sum_{i=1}^{p} a_i x_i,\ a_i \in \R \Big\}$$
+    <p>"set of vectors that can be expressed as linear combos of columns of $X$"</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p>把 $p$ 个长度为 $n$ 的列向量并排放，就得到 $n\times p$ 的矩阵 $X$。在回归里：$n$ = 样本量（行），$p$ = 自变量个数（列），每一列 $x_i$ 是一个变量的全部观测。</p>
+    <p><b>线性组合</b>：把各列分别乘一个系数再加起来：$a_1x_1 + a_2x_2 + \dots + a_px_p$。</p>
+    <p><b>列空间 $\Lcol(X)$</b>：所有可能的线性组合构成的集合（系数 $a_i$ 随便取）。也就是说，<b>用 $X$ 的列「能拼出来」的所有向量</b>。它也叫「由 $X$ 张成（span）的空间」。</p>
+    <p>几何直觉：在 $\R^3$ 里，一个向量张成一条过原点的直线；两个不共线的向量张成一个过原点的平面。</p>
+    <p>小技巧：$\sum a_i x_i$ 可以写成矩阵乘法 $Xa$，其中 $a = (a_1,\dots,a_p)'$。所以 $\Lcol(X) = \{Xa : a \in \R^p\}$。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>$X = \begin{pmatrix}1&0\\0&1\\0&0\end{pmatrix}$：线性组合 $a_1(1,0,0)' + a_2(0,1,0)' = (a_1, a_2, 0)'$，所以列空间是 $\R^3$ 中的 $xy$ 平面（第三个分量为 0 的所有向量）。$(0,0,1)'$ 就拼不出来，不在列空间里。</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用</span>
+    <p>回归设计矩阵：$X = \begin{pmatrix}1 & 1\\ 1 & 2\\ 1 & 3\end{pmatrix}$（第一列是截距，第二列是自变量）。$\Lcol(X)$ 就是「所有形如 $\beta_0 + \beta_1 x$ 的拟合值向量」。<b>线性回归的本质：在 $\Lcol(X)$ 里找一个离 $y$ 最近的向量。</b>后面第 8 节就是在做这件事。</p>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4">
+  <h2><span class="num">4</span>标准正交基与 Gram-Schmidt</h2>
+  <p class="page-ref">笔记第 2 页上部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>Orthonormal Basis：Can create O.N. basis of $\Lcol(X)$，</p>
+    $$\Gamma = \begin{pmatrix} | & | & & | \\ \gamma_1 & \gamma_2 & \cdots & \gamma_p \\ | & | & & | \end{pmatrix}\quad \text{s.t. } \langle \gamma_i, \gamma_j\rangle = \delta_{ij} = \begin{cases}1 & \text{iff } i=j\\ 0 & \text{else}\end{cases}$$
+    $$\Rightarrow\ \Gamma'\Gamma = I_p$$
+    <p>How to find? Gram-Schmidt Orthogonalization.</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>基（basis）</b>：一组「刚好够用、没有多余」的向量，能拼出整个空间。</p>
+    <p><b>标准正交（orthonormal）</b> = 正交（orthogonal，两两垂直）+ 标准化（normal，每个长度为 1）。条件 $\langle\gamma_i,\gamma_j\rangle = \delta_{ij}$ 正好同时说了这两件事：</p>
+    <ul>
+      <li>$i = j$：$\langle\gamma_i,\gamma_i\rangle = 1$，即长度为 1；</li>
+      <li>$i \neq j$：$\langle\gamma_i,\gamma_j\rangle = 0$，即互相垂直。</li>
+    </ul>
+    <p><b>为什么 $\Gamma'\Gamma = I_p$？</b>矩阵乘积 $\Gamma'\Gamma$ 的第 $(i,j)$ 个元素，就是 $\Gamma$ 第 $i$ 列和第 $j$ 列的内积 $\gamma_i'\gamma_j = \delta_{ij}$。对角线全是 1、其余全是 0，正好是单位矩阵。</p>
+    <p>直观理解：标准正交基就像一套「互相垂直、刻度为 1」的坐标轴，在它下面算东西最方便。</p>
+  </div>
+  <div class="box plain"><span class="label">补充：Gram-Schmidt 正交化怎么做</span>
+    <p>给一组线性无关的向量 $x_1, x_2, \dots$，逐个「去掉和前面重叠的部分，再缩放到长度 1」：</p>
+    $$\gamma_1 = \frac{x_1}{\|x_1\|},\qquad
+      u_2 = x_2 - \langle x_2,\gamma_1\rangle\gamma_1,\quad \gamma_2 = \frac{u_2}{\|u_2\|},$$
+    $$u_3 = x_3 - \langle x_3,\gamma_1\rangle\gamma_1 - \langle x_3,\gamma_2\rangle\gamma_2,\quad \gamma_3 = \frac{u_3}{\|u_3\|},\ \dots$$
+    <p>每一步减掉的 $\langle x_k,\gamma_j\rangle\gamma_j$ 就是 $x_k$ 在 $\gamma_j$ 方向上的投影（「影子」），减掉后剩下的部分自然和前面的方向都垂直。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>$x_1 = (1,1,0)'$，$x_2 = (1,0,1)'$。</p>
+    <p>第 1 步：$\|x_1\| = \sqrt2$，所以 $\gamma_1 = \frac{1}{\sqrt2}(1,1,0)'$。</p>
+    <p>第 2 步：$\langle x_2,\gamma_1\rangle = \frac{1}{\sqrt2}$，$u_2 = (1,0,1)' - \frac{1}{\sqrt2}\cdot\frac{1}{\sqrt2}(1,1,0)' = (\tfrac12, -\tfrac12, 1)'$。</p>
+    <p>$\|u_2\| = \sqrt{\tfrac14+\tfrac14+1} = \tfrac{\sqrt6}{2}$，所以 $\gamma_2 = \frac{1}{\sqrt6}(1,-1,2)'$。</p>
+    <p>验算：$\gamma_1'\gamma_2 = \frac{1-1+0}{\sqrt{12}} = 0$ ✓，两者长度都是 1 ✓。</p>
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5">
+  <h2><span class="num">5</span>正交表示</h2>
+  <p class="page-ref">笔记第 2 页中部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>Orthogonal Representation：for any $v \in \Lcol(X)$，</p>
+    $$v = \sum_{i=1}^{p} a_i x_i = \sum_{i=1}^{p} v_i \gamma_i$$
+    $$\Lcol(X) = \Lcol(\Gamma)$$
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p>列空间里的同一个向量 $v$，可以用两套「积木」来拼：</p>
+    <ul>
+      <li>用原来的列 $x_1,\dots,x_p$，系数是 $a_i$；</li>
+      <li>用标准正交基 $\gamma_1,\dots,\gamma_p$，系数是 $v_i$（笔记里用粉色标出、箭头指向的就是这组新系数）。</li>
+    </ul>
+    <p>$\Lcol(X) = \Lcol(\Gamma)$：两套积木能拼出来的东西<b>完全一样</b>。Gram-Schmidt 只是换了一套更好用的坐标轴，并没有改变空间本身。</p>
+    <p><b>标准正交基的好处</b>：新系数特别好算，直接做内积就行：$v_i = \langle v, \gamma_i\rangle$。（因为两边同时和 $\gamma_j$ 做内积，其他项都因为垂直变成 0。）用原来的 $x_i$ 就没这么简单，需要解方程组。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子（接第 4 节）</span>
+    <p>$v = x_1 + x_2 = (2,1,1)'$，即 $a_1 = a_2 = 1$。</p>
+    <p>新系数：$v_1 = \langle v,\gamma_1\rangle = \frac{3}{\sqrt2}$，$v_2 = \langle v,\gamma_2\rangle = \frac{2-1+2}{\sqrt6} = \frac{3}{\sqrt6}$。</p>
+    <p>验算：$\frac{3}{\sqrt2}\cdot\frac{(1,1,0)'}{\sqrt2} + \frac{3}{\sqrt6}\cdot\frac{(1,-1,2)'}{\sqrt6} = (1.5, 1.5, 0)' + (0.5,-0.5,1)' = (2,1,1)'$ ✓</p>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6">
+  <h2><span class="num">6</span>正交补（笔记里标的 Null Space）</h2>
+  <p class="page-ref">笔记第 2 页下部（带图）</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    $$\Lcol^{\perp}(X) = \{ v : \langle v, x\rangle = 0,\ \forall x \in \Lcol(X) \} = \{ v : v'x = 0 \}$$
+    <p>图：$x_1$、$x_2$ 张成的平面 $\Lcol\big((x_1\ x_2)\big)$（黄色），垂直于它的方向是 $\Lcol^{\perp}(X)$（粉色）。</p>
+  </div>
+  <figure>
+    <svg viewBox="0 0 420 300" style="max-width:440px" role="img" aria-label="x1 和 x2 张成的平面，以及垂直于平面的正交补方向">
+      <polygon points="60,220 230,270 380,200 210,150" fill="#e8c840" opacity="0.35"/>
+      <line x1="210" y1="210" x2="110" y2="245" stroke="currentColor" stroke-width="2.5"/>
+      <polygon points="110,245 122,236 124,247" fill="currentColor"/>
+      <line x1="210" y1="210" x2="300" y2="245" stroke="currentColor" stroke-width="2.5"/>
+      <polygon points="300,245 286,246 290,236" fill="currentColor"/>
+      <line x1="210" y1="210" x2="210" y2="40" stroke="#d65aa8" stroke-width="7" opacity="0.75"/>
+      <polygon points="210,28 200,46 220,46" fill="#d65aa8"/>
+      <text x="95" y="268" font-size="15" fill="currentColor">x₁</text>
+      <text x="300" y="268" font-size="15" fill="currentColor">x₂</text>
+      <text x="225" y="70" font-size="15" fill="#d65aa8">𝓛⊥col(X)</text>
+      <text x="262" y="160" font-size="14" fill="currentColor">𝓛col(X)（黄色平面）</text>
+      <path d="M210,195 L222,199 L222,213" fill="none" stroke="currentColor" stroke-width="1.2"/>
+    </svg>
+    <figcaption>平面里的任何向量都和粉色方向垂直；粉色方向上的向量用 $x_1, x_2$ 永远拼不出来。</figcaption>
+  </figure>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p>$\Lcol^{\perp}(X)$（读作「L col perp」）是<b>正交补</b>：所有和列空间里<b>每一个</b>向量都垂直的向量组成的集合。</p>
+    <p>为什么最后可以简化成 $\{v: v'x = 0\}$？因为列空间里的向量都是各列的线性组合，所以只要 $v$ 和 $X$ 的<b>每一列</b>都垂直，它就自动和它们的任何组合都垂直。把「和每一列都垂直」写成矩阵形式就是：</p>
+    $$X'v = 0$$
+    <p>（$X'v$ 的第 $i$ 个分量正好是 $x_i'v$。）</p>
+    <p>在 $\R^n$ 里，列空间和正交补合起来「分完」整个空间：维数相加等于 $n$。任何向量都可以唯一地拆成「列空间里的部分 + 正交补里的部分」，第 8 节就靠这一点。</p>
+  </div>
+  <div class="box warn"><span class="label">注意：名字</span>
+    <p>笔记把这一块标为 "Null Space"。更准确地说，$\Lcol^{\perp}(X)$ 是 $X'$ 的零空间（null space of $X'$），因为它正是满足 $X'v = 0$ 的所有 $v$。很多教材也直接叫它「正交补」(orthogonal complement)。两种说法指的是同一个集合。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子（接第 4 节）</span>
+    <p>$x_1 = (1,1,0)'$，$x_2 = (1,0,1)'$。找 $v = (v_1,v_2,v_3)'$ 使得：</p>
+    $$x_1'v = v_1 + v_2 = 0,\qquad x_2'v = v_1 + v_3 = 0$$
+    <p>解得 $v = t(1,-1,-1)'$，$t$ 任意。所以正交补是一条直线（1 维），而列空间是平面（2 维），$2 + 1 = 3 = n$ ✓。</p>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7">
+  <h2><span class="num">7</span>秩（Rank）与可逆</h2>
+  <p class="page-ref">笔记第 3 页上部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>Rank：$\operatorname{Rank}(X) = \dim(\Lcol(X))$ = # of linearly independent basis vectors</p>
+    <p>$\operatorname{rank}(X) = \operatorname{rank}(X^T)$</p>
+    <p>If $X_{n\times n}$ is square and full rank ($\operatorname{rank}(X) = n$)，it's invertible：$X^{-1}$ s.t. $XX^{-1} = I$</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>线性无关</b>：一组向量里，没有任何一个能被其他向量拼出来（没有「多余」的）。</p>
+    <p><b>秩</b> = 列空间的维数 = $X$ 里线性无关的列最多有几个。直观说：<b>$X$ 的列里到底有多少条「真正独立的信息」</b>。</p>
+    <p><b>$\operatorname{rank}(X) = \operatorname{rank}(X^T)$</b>：按列数独立方向和按行数，得到的数一样。推论：$n\times p$ 矩阵的秩不会超过 $\min(n,p)$。</p>
+    <p><b>满秩方阵可逆</b>：$n\times n$ 方阵的秩等于 $n$（所有列都独立），就存在逆矩阵 $X^{-1}$，满足 $XX^{-1} = I$（也有 $X^{-1}X = I$）。不满秩就没有逆。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>$\begin{pmatrix}1&2\\2&4\end{pmatrix}$：第二列 = 2 × 第一列，只有 1 个独立方向，秩为 1，<b>不可逆</b>。</p>
+    <p>$\begin{pmatrix}2&1\\1&1\end{pmatrix}$：两列不成比例，秩为 2（满秩），逆矩阵为 $\begin{pmatrix}1&-1\\-1&2\end{pmatrix}$。</p>
+    <p>验算：$\begin{pmatrix}2&1\\1&1\end{pmatrix}\begin{pmatrix}1&-1\\-1&2\end{pmatrix} = \begin{pmatrix}2-1 & -2+2\\ 1-1 & -1+2\end{pmatrix} = I$ ✓</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用</span>
+    <p>回归里如果两个自变量完全共线（比如一列是「身高(cm)」、另一列是「身高(m)」），$X$ 就不满列秩，下一节要用的 $(X'X)^{-1}$ 就不存在，系数无法唯一估计。这就是「完全多重共线性」。</p>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8">
+  <h2><span class="num">8</span>投影矩阵：推导 $\hat\beta$</h2>
+  <p class="page-ref">笔记第 3 页下部 – 第 4 页上部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>$X_{n\times p} = (x_1 \cdots x_p)$ lin. indep. $\Leftrightarrow \operatorname{rank}(X) = p$。Assume $n > p$。</p>
+    $$y \in \R^n,\quad y = \hat y + y^{\perp}\quad \text{s.t.}\ \begin{cases}\hat y \in \Lcol(X)\\ y^{\perp} \in \Lcol^{\perp}(X)\end{cases}$$
+    $$X'y = X'(\hat y + y^{\perp}) \overset{(1)}{=} X'\hat y$$
+    $$\hat y \in \Lcol(X) \Rightarrow \hat y \overset{(2)}{=} X_{n\times p}\hat\beta_{p\times 1} = \sum_{i=1}^p \hat b_i x_i$$
+    $$X'y \overset{(1)}{=} X'\hat y \overset{(2)}{=} X'X\hat\beta\qquad \text{（两边左乘 }(X'X)^{-1}\text{）}$$
+    $$\hat\beta = (X'X)^{-1}X'y$$
+    $$\hat y = X\hat\beta = \underbrace{X(X^TX)^{-1}X^T}_{P}\,y = Py$$
+    <p>$P$ is a "projection matrix"。</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释，一步一步来</span>
+    <p><b>前提</b>：$X$ 的 $p$ 列线性无关（秩为 $p$），并且样本量 $n$ 大于变量数 $p$。</p>
+    <p><b>第 1 步：拆分 $y$。</b>由第 6 节，任何 $y$ 都能唯一拆成两部分：</p>
+    <ul>
+      <li>$\hat y$：落在列空间里的部分（$y$ 在列空间上的「影子」）→ 回归的<b>拟合值</b>；</li>
+      <li>$y^{\perp}$：垂直于列空间的部分 → 回归的<b>残差</b>。</li>
+    </ul>
+    <p><b>第 2 步：等式 (1)。</b>两边左乘 $X'$。因为 $y^{\perp}$ 在正交补里，按第 6 节 $X'y^{\perp} = 0$，所以 $X'y = X'\hat y$。</p>
+    <p><b>第 3 步：等式 (2)。</b>$\hat y$ 在列空间里，所以它一定能写成 $X$ 各列的线性组合，组合系数记作 $\hat\beta$（一个 $p\times1$ 向量）：$\hat y = X\hat\beta$。</p>
+    <p><b>第 4 步：合并。</b>代入得 $X'y = X'X\hat\beta$。这个方程叫<b>正规方程（normal equations）</b>。</p>
+    <p><b>第 5 步：解出 $\hat\beta$。</b>$X'X$ 是 $p\times p$ 方阵，并且因为 $X$ 列满秩，$X'X$ 也满秩、可逆（第 7 节）。两边左乘 $(X'X)^{-1}$（笔记里红色标注的就是这一步）：</p>
+    $$\hat\beta = (X'X)^{-1}X'y$$
+    <p>这就是<b>最小二乘（OLS）估计量</b>的公式！</p>
+    <p><b>第 6 步：拟合值。</b>$\hat y = X\hat\beta = X(X'X)^{-1}X'y$。把中间那一坨记为 $P = X(X'X)^{-1}X'$，就有 $\hat y = Py$：<b>$P$ 把任何 $y$ 变成它在列空间上的投影</b>，所以叫投影矩阵（回归里也叫 hat matrix，因为它给 $y$「戴上帽子」变成 $\hat y$）。</p>
+  </div>
+  <div class="box plain"><span class="label">为什么这样得到的就是「最好」的拟合？（补充直觉）</span>
+    <p>在列空间里所有可能的拟合向量中，垂直投影 $\hat y$ 离 $y$ 最近。这就像从一个点向一个平面做垂线，垂足就是平面上离这个点最近的地方。「离得最近」= 残差平方和 $\|y - \hat y\|^2$ 最小 = <b>最小二乘</b>。</p>
+  </div>
+  <div class="demo">
+    <svg id="proj-demo" viewBox="-240 -240 480 480" aria-label="二维投影交互演示"></svg>
+    <div class="readout" id="proj-readout"></div>
+    <div class="hint">拖动 <b>x</b> 或 <b>y</b> 箭头末端的圆点。绿色 = 投影 $\hat y = Py$，红色虚线 = 残差 $y^{\perp}$，浅绿色粗线 = 列空间 $\Lcol(x)$。</div>
+  </div>
+  <div class="box ex"><span class="label">小例子：只有截距的回归</span>
+    <p>$X = (1,1,1)'$（$n=3,\ p=1$），$y = (1,2,6)'$。</p>
+    <p>$X'X = 3$，$X'y = 1+2+6 = 9$，所以 $\hat\beta = 9/3 = 3$ —— 就是 $y$ 的<b>样本均值</b>！</p>
+    <p>$\hat y = X\hat\beta = (3,3,3)'$，$y^{\perp} = y - \hat y = (-2,-1,3)'$。</p>
+    <p>验算垂直：$X'y^{\perp} = -2-1+3 = 0$ ✓（残差之和为 0）。</p>
+    <p>投影矩阵：$P = X(X'X)^{-1}X' = \frac13\begin{pmatrix}1&1&1\\1&1&1\\1&1&1\end{pmatrix}$，$Py$ 的每个分量都是 $(1+2+6)/3 = 3$ ✓。</p>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="s9">
+  <h2><span class="num">9</span>投影矩阵的性质</h2>
+  <p class="page-ref">笔记第 4 页下部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>$P^{\perp} = I - P$（Proj. matrix into $\Lcol^{\perp}(X)$）</p>
+    <p>e.g. $P^{\perp}y = (I-P)(\hat y + y^{\perp}) = \hat y + y^{\perp} - P\hat y = y^{\perp}$</p>
+    <p>(1) $P$ and $P^{\perp}$ are symmetric<br>
+       (2) $P^2 = P$ (Idempotent) (verify)<br>
+       (3) $P$ is $n\times n$ matrix with $\operatorname{rank}(P) = p$，$\operatorname{rank}(P^{\perp}) = n - p$<br>
+       (4) All the eigenvalues of $P$ are 0 or 1.</p>
+  </div>
+  <div class="box plain"><span class="label">先看 $P^{\perp} = I - P$</span>
+    <p>$P$ 取出 $y$ 在列空间里的部分，那 $I - P$ 自然取出「剩下的」部分，即残差。笔记里的验证：</p>
+    $$P^{\perp}y = (I-P)(\hat y + y^{\perp}) = \hat y + y^{\perp} - P\hat y - Py^{\perp}$$
+    <p>其中 $P\hat y = \hat y$（已经在列空间里的东西，再投影一次不变），$Py^{\perp} = 0$（垂直的东西投影到列空间是 0，因为 $X'y^{\perp}=0$）。所以结果是 $y^{\perp}$。笔记里划掉的就是互相抵消的 $\hat y$ 和 $P\hat y$。</p>
+  </div>
+  <h3>性质 (1)：对称</h3>
+  <div class="box plain"><span class="label">意思 + 证明</span>
+    <p>$P' = P$。证明：用 $(ABC)' = C'B'A'$，以及 $X'X$ 对称所以它的逆也对称：</p>
+    $$P' = \big(X(X'X)^{-1}X'\big)' = X\big((X'X)^{-1}\big)'X' = X(X'X)^{-1}X' = P$$
+    <p>于是 $(I-P)' = I - P' = I - P$，$P^{\perp}$ 也对称。</p>
+  </div>
+  <h3>性质 (2)：幂等 $P^2 = P$（笔记要求自己验证）</h3>
+  <div class="box plain"><span class="label">意思 + 证明</span>
+    <p>直觉：投影一次之后，影子已经在平面上了，再投影一次还是它自己。</p>
+    $$P^2 = X(X'X)^{-1}\underbrace{X'X(X'X)^{-1}}_{=I_p}X' = X(X'X)^{-1}X' = P$$
+    <p>$P^{\perp}$ 也幂等：$(I-P)^2 = I - 2P + P^2 = I - 2P + P = I - P$。</p>
+  </div>
+  <h3>性质 (3)：秩</h3>
+  <div class="box plain"><span class="label">意思 + 理由</span>
+    <p>$P$ 是 $n\times n$ 的大矩阵，但它的秩只有 $p$：因为它的输出永远落在 $p$ 维的列空间里。$P^{\perp}$ 的输出落在 $n-p$ 维的正交补里，所以秩是 $n - p$。两者相加为 $n$。</p>
+    <p>（另一种算法，用到第 12 节的迹：幂等矩阵的秩 = 迹，$\operatorname{tr}(P) = \operatorname{tr}\big((X'X)^{-1}X'X\big) = \operatorname{tr}(I_p) = p$。）</p>
+  </div>
+  <h3>性质 (4)：特征值只能是 0 或 1</h3>
+  <div class="box plain"><span class="label">意思 + 证明</span>
+    <p>若 $Pv = \lambda v$（$v \ne 0$），两边再乘 $P$：$P^2v = \lambda^2 v$；又 $P^2 = P$，所以 $\lambda^2 v = \lambda v$，即 $\lambda^2 = \lambda$，故 $\lambda = 0$ 或 $1$。</p>
+    <p>几何意义：列空间里的向量被 $P$ 原样保留（特征值 1，共 $p$ 个）；正交补里的向量被 $P$ 压成 0（特征值 0，共 $n-p$ 个）。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子（接第 8 节）</span>
+    <p>$P = \frac13 J$（$J$ 为全 1 矩阵，$3\times3$）。特征值为 $1, 0, 0$：$P(1,1,1)' = (1,1,1)'$，$P(1,-1,0)' = 0$。秩为 $1 = p$，$P^{\perp} = I - \frac13J$ 秩为 $2 = n - p$ ✓。</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用</span>
+    <p>残差 $= P^{\perp}y$，残差平方和 $= y'P^{\perp}y$。$P^{\perp}$ 的秩 $n-p$ 就是残差的<b>自由度</b>，这就是为什么误差方差的估计是 $\hat\sigma^2 = \frac{\text{RSS}}{n-p}$ 而不是除以 $n$。</p>
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section id="s10">
+  <h2><span class="num">10</span>谱分解（Spectral Decomposition，特征分解）</h2>
+  <p class="page-ref">笔记第 5 页上部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>$A$ is a real sym. $n\times n$ matrix of rank $p$。Then we can write</p>
+    $$A = \Gamma_{n\times p}\Lambda_{p\times p}\Gamma'_{p\times n}$$
+    <p>where $\Lambda = \begin{pmatrix}\lambda_1 & & 0\\ & \ddots & \\ 0 & & \lambda_p\end{pmatrix}$（diagonal matrix），and $\Gamma'\Gamma = I_n$，$\Gamma = (\gamma_1 \cdots \gamma_p)$，$\gamma_i'\gamma_j = 0$ if $i\neq j$。</p>
+    <p>Equiv. $A = \sum_{i=1}^{p}\lambda_i\gamma_i\gamma_i'$（sum of rank 1 matrices）</p>
+    <p>$A\gamma_i = \lambda_i\gamma_i$，$\lambda$'s are eigenvalues，$\gamma$'s are eigenvectors。</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>特征向量与特征值</b>：$A\gamma = \lambda\gamma$ 的意思是，矩阵 $A$ 作用在 $\gamma$ 上，<b>方向不变，只是长度乘以 $\lambda$</b>。$\gamma$ 是「特殊方向」（特征向量），$\lambda$ 是在这个方向上的「拉伸倍数」（特征值）。</p>
+    <p><b>谱分解定理</b>：任何实对称矩阵都可以拆成三部分相乘：</p>
+    <ul>
+      <li>$\Gamma$：各列是标准正交的特征向量（相互垂直、长度 1）；</li>
+      <li>$\Lambda$：对角矩阵，对角线上是对应的特征值；</li>
+      <li>$\Gamma'$：$\Gamma$ 的转置。</li>
+    </ul>
+    <p>直观理解 $A x = \Gamma\Lambda\Gamma' x$：先用 $\Gamma'$ 把 $x$ 转到特征向量坐标系，再用 $\Lambda$ 在每个轴上各自拉伸，最后用 $\Gamma$ 转回来。<b>对称矩阵做的事，本质就是「沿几个互相垂直的方向分别拉伸」。</b></p>
+    <p>秩为 $p$ 意味着恰好有 $p$ 个非零特征值，笔记只保留这 $p$ 个（其余特征值为 0，对 $A$ 没有贡献），所以 $\Gamma$ 是 $n\times p$。</p>
+    <p><b>等价写法</b>：把矩阵乘法展开，$A = \lambda_1\gamma_1\gamma_1' + \dots + \lambda_p\gamma_p\gamma_p'$。每个 $\gamma_i\gamma_i'$ 是 $n\times n$ 的秩 1 矩阵（其实就是投影到 $\gamma_i$ 方向的投影矩阵），所以 $A$ 是 $p$ 个秩 1 矩阵的加权和。</p>
+  </div>
+  <div class="box warn"><span class="label">注意：笔记里的小笔误</span>
+    <p>笔记写 $\Gamma'\Gamma = I_n$。由于 $\Gamma$ 是 $n\times p$，$\Gamma'\Gamma$ 是 $p\times p$，应为 <b>$\Gamma'\Gamma = I_p$</b>（和第 4 节一致）。另外条件除了 $i\ne j$ 时 $\gamma_i'\gamma_j = 0$，还有 $\gamma_i'\gamma_i = 1$（长度为 1）。当 $p = n$（满秩）时，$\Gamma$ 是方阵，此时 $\Gamma'\Gamma = \Gamma\Gamma' = I_n$。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>$A = \begin{pmatrix}2&1\\1&2\end{pmatrix}$。特征值 $\lambda_1 = 3,\ \lambda_2 = 1$；特征向量 $\gamma_1 = \frac{1}{\sqrt2}(1,1)'$，$\gamma_2 = \frac{1}{\sqrt2}(1,-1)'$。</p>
+    <p>验算 $A\gamma_1 = \frac{1}{\sqrt2}(3,3)' = 3\gamma_1$ ✓，$A\gamma_2 = \frac{1}{\sqrt2}(1,-1)' = 1\cdot\gamma_2$ ✓。</p>
+    <p>秩 1 矩阵之和：</p>
+    $$3\cdot\frac12\begin{pmatrix}1&1\\1&1\end{pmatrix} + 1\cdot\frac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix} = \begin{pmatrix}2&1\\1&2\end{pmatrix} = A$$
+    <p>✓ 和原矩阵一致。</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用</span>
+    <p>协方差矩阵 $\Sigma$ 是对称的，它的谱分解就是<b>主成分分析（PCA）</b>：特征向量是主成分方向，特征值是各方向上的方差。投影矩阵 $P$ 的谱分解就是 $p$ 个特征值 1 和若干个 0（第 9 节性质 4）。</p>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section id="s11">
+  <h2><span class="num">11</span>矩阵的幂与平方根</h2>
+  <p class="page-ref">笔记第 5 页下部</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    <p>Powers：$A^k = \underbrace{A\cdot A\cdots A}_{k} = \Gamma\Lambda^k\Gamma'$</p>
+    <p>Matrix Square Root：$A^{1/2} = \Gamma\Lambda^{1/2}\Gamma^T$</p>
+    <p>B/c $A^{1/2}A^{1/2} = (\Gamma\Lambda^{1/2}\Gamma^T)(\Gamma\Lambda^{1/2}\Gamma^T) = \Gamma\Lambda\Gamma^T$（中间 $\Gamma^T\Gamma = I$）</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>幂</b>：$A^2 = \Gamma\Lambda\Gamma'\Gamma\Lambda\Gamma' = \Gamma\Lambda(\Gamma'\Gamma)\Lambda\Gamma' = \Gamma\Lambda^2\Gamma'$，因为中间的 $\Gamma'\Gamma = I$ 消掉了。乘 $k$ 次同理。而对角矩阵的 $k$ 次方就是把对角线上每个数各自 $k$ 次方：$\Lambda^k = \operatorname{diag}(\lambda_1^k,\dots,\lambda_p^k)$。<b>所以算矩阵的幂只需要算特征值的幂。</b></p>
+    <p><b>平方根</b>：同样的思路，定义 $A^{1/2} = \Gamma\Lambda^{1/2}\Gamma'$，其中 $\Lambda^{1/2} = \operatorname{diag}(\sqrt{\lambda_1},\dots,\sqrt{\lambda_p})$。笔记的验证：自己乘自己，中间的 $\Gamma^T\Gamma$ 是 $I$（笔记里在上方标了一个 $I$），剩下 $\Gamma\Lambda^{1/2}\Lambda^{1/2}\Gamma^T = \Gamma\Lambda\Gamma^T = A$。所以它确实是「平方等于 $A$」的矩阵。</p>
+  </div>
+  <div class="box warn"><span class="label">注意：笔记没写的前提</span>
+    <p>要开平方根，特征值必须都 $\ge 0$（即 $A$ 是半正定的），否则 $\sqrt{\lambda_i}$ 不是实数。协方差矩阵总是满足这个条件。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子（接第 10 节，$A = \begin{pmatrix}2&1\\1&2\end{pmatrix}$）</span>
+    <p><b>平方</b>：$A^2 = 9\cdot\frac12\begin{pmatrix}1&1\\1&1\end{pmatrix} + 1\cdot\frac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix} = \begin{pmatrix}5&4\\4&5\end{pmatrix}$。</p>
+    <p>直接算：$\begin{pmatrix}2&1\\1&2\end{pmatrix}^2 = \begin{pmatrix}4+1&2+2\\2+2&1+4\end{pmatrix} = \begin{pmatrix}5&4\\4&5\end{pmatrix}$ ✓</p>
+    <p><b>平方根</b>：$A^{1/2} = \sqrt3\cdot\frac12\begin{pmatrix}1&1\\1&1\end{pmatrix} + 1\cdot\frac12\begin{pmatrix}1&-1\\-1&1\end{pmatrix} = \frac12\begin{pmatrix}\sqrt3+1 & \sqrt3-1\\ \sqrt3-1 & \sqrt3+1\end{pmatrix}$。</p>
+    <p>验算：对角元 $\frac{(\sqrt3+1)^2+(\sqrt3-1)^2}{4} = \frac{8}{4} = 2$ ✓；非对角元 $\frac{2(\sqrt3+1)(\sqrt3-1)}{4} = \frac{4}{4} = 1$ ✓。</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用（补充）</span>
+    <p>同样的方法可以算 $A^{-1} = \Gamma\Lambda^{-1}\Gamma'$（满秩时）和 $\Sigma^{-1/2}$。$\Sigma^{-1/2}(x - \mu)$ 能把相关的、方差不等的变量变成互不相关、方差为 1 的变量（「白化」），也正是第 2 节 Mahalanobis 距离背后的变换；GLS / WLS 回归也用到它。</p>
+  </div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section id="s12">
+  <h2><span class="num">12</span>迹（Trace）</h2>
+  <p class="page-ref">笔记第 6 页</p>
+  <div class="box note"><span class="label">📝 笔记原文</span>
+    $$\operatorname{tr}(A) = \sum_{i=1}^{p} a_{ii} = \sum \lambda_i$$
+    <p>（sum of diagonals）（equal to sum of eigenvalues）</p>
+  </div>
+  <div class="box plain"><span class="label">白话解释</span>
+    <p><b>迹</b> = 方阵对角线元素之和。笔记给出一个重要事实：<b>迹等于所有特征值之和</b>。</p>
+    <p>为什么？（补充）迹有一个性质 $\operatorname{tr}(BC) = \operatorname{tr}(CB)$（乘法顺序可以「转一圈」）。于是</p>
+    $$\operatorname{tr}(A) = \operatorname{tr}(\Gamma\Lambda\Gamma') = \operatorname{tr}(\Lambda\Gamma'\Gamma) = \operatorname{tr}(\Lambda) = \sum\lambda_i$$
+  </div>
+  <div class="box warn"><span class="label">注意：求和上限</span>
+    <p>$A$ 是 $n\times n$，对角线有 $n$ 个元素，所以 $\sum a_{ii}$ 应从 $1$ 加到 $n$。特征值那边加到 $p$ 也对，因为另外 $n-p$ 个特征值是 0。</p>
+  </div>
+  <div class="box ex"><span class="label">小例子</span>
+    <p>$A = \begin{pmatrix}2&1\\1&2\end{pmatrix}$：$\operatorname{tr}(A) = 2 + 2 = 4$，特征值之和 $3 + 1 = 4$ ✓。</p>
+    <p>投影矩阵 $P = \frac13J$：$\operatorname{tr}(P) = \frac13\cdot3 = 1$，特征值 $1+0+0 = 1$，等于 $p$ ✓。</p>
+  </div>
+  <div class="box why"><span class="label">在统计里有什么用</span>
+    <p>$\operatorname{tr}(P) = p$（模型参数个数），$\operatorname{tr}(I-P) = n-p$（残差自由度）。算 $E[\text{RSS}] = \sigma^2(n-p)$ 时就是用迹算出来的。</p>
+  </div>
+</section>
+
+<!-- ============ 13 ============ -->
+<section id="s13">
+  <h2><span class="num">13</span>总结：全部串起来</h2>
+  <ol>
+    <li>向量住在 $\R^n$ 里，可以相加、数乘（§1）。</li>
+    <li>内积衡量长度和垂直；本课用普通点积 $x'y$（§2）。</li>
+    <li>$X$ 的列能拼出的所有向量 = 列空间 $\Lcol(X)$（§3）。</li>
+    <li>可以用 Gram-Schmidt 给列空间造一套互相垂直、长度为 1 的坐标轴 $\Gamma$，空间本身不变（§4–5）。</li>
+    <li>和列空间处处垂直的向量 = 正交补，满足 $X'v = 0$（§6）。</li>
+    <li>秩 = 独立方向的个数；满秩方阵可逆（§7）。</li>
+    <li>把 $y$ 拆成「列空间部分 + 垂直部分」，就推出 OLS：$\hat\beta = (X'X)^{-1}X'y$，$\hat y = Py$（§8）。</li>
+    <li>$P$ 对称、幂等、秩 $p$、特征值 0/1；$I - P$ 给出残差，秩 $n-p$ = 残差自由度（§9）。</li>
+    <li>对称矩阵 = 沿互相垂直的方向分别拉伸：$A = \Gamma\Lambda\Gamma'$（§10）。</li>
+    <li>有了谱分解，幂、平方根、逆都只需对特征值操作（§11）。</li>
+    <li>迹 = 对角线之和 = 特征值之和；$\operatorname{tr}(P) = p$（§12）。</li>
+  </ol>
+  <div class="box why"><span class="label">一句话</span>
+    <p><b>线性回归 = 把 $y$ 垂直投影到 $X$ 的列空间上。</b>这一讲的所有工具都是为这一句话服务的。</p>
+  </div>
+</section>
+
+</main>
+</div>
+<script src="../assets/main.js"></script>
+</body>
+</html>
