@@ -183,3 +183,10 @@ figcaption { color: var(--muted); font-size: 14px; margin-top: 6px; }
   header.page h1 { font-size: 27px; }
   body { font-size: 16px; }
 }
+
+/* generated concept figures */
+figure.fig { margin: 18px 0; }
+.fig-row { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; align-items: flex-start; }
+.fig-row svg { flex: 1 1 240px; max-width: 360px; height: auto; background: var(--bg);
+               border: 1px solid var(--border); border-radius: 10px; }
+figure.fig figcaption { text-align: left; max-width: 760px; margin: 8px auto 0; line-height: 1.7; }
