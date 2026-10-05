@@ -190,3 +190,5 @@ figure.fig { margin: 18px 0; }
 .fig-row svg { flex: 1 1 240px; max-width: 360px; height: auto; background: var(--bg);
                border: 1px solid var(--border); border-radius: 10px; }
 figure.fig figcaption { text-align: left; max-width: 760px; margin: 8px auto 0; line-height: 1.7; }
+
+.muted-note { color: var(--muted); font-size: 14px; }
