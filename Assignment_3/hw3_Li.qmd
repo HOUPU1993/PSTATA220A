@@ -1,0 +1,377 @@
+---
+title: "PSTAT220A Homework 3"
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=30mm
+execute:
+  echo: false
+author: Houpu Li
+date: "Due 11/15/2026"
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(faraway)
+library(leaps)
+library(glmnet)
+library(qvalue)  # Bioconductor: BiocManager::install("qvalue")
+library(ggbeeswarm)
+set.seed(220)
+```
+
+
+## Problem 1
+
+Consider the data on teen gambling in `teengamb` from the `faraway` package. Fit a simple linear regression model with the expenditure on gambling as the response and income as the covariate:
+
+(a) Check the constant variance assumption for errors. What do you conclude?
+(b) Assume that constant variance assumption is violated and that instead the residual variance grows linearly with income.  Fit a weighted least squares to account for this fact.  Report the coefficient and confidence interval.
+(c) Construct a bootstrap confidence interval of the regression coefficients and of the residual variance (assuming an income of 1).
+(d) Make a plot showing the prediction intervals (again assuming residual variance grows linearly with income).  The plot should have `income` on the x-axis, `gamble` on the y-axis, and prediction bands for each point.
+(e) Fit a robust regression model using `rlm`. Compare the coefficients from your weighted least squares fit.
+(f) Use `optim` to a fit a t-regression. That is, fit the linear model assuming iid residuals with a $t_3$ distribution. Construct a bootstrap confidence interval of the regression coefficients.
+
+### Solution
+
+**(a)**
+```{r p1-data}
+library(faraway)
+head(teengamb)   
+```
+
+
+```{r p1a, fig.height=3.2, fig.width=7, echo=TRUE}
+fit_ols <- lm(gamble ~ income, data = teengamb)
+
+ggplot(tibble(fitted = fitted(fit_ols), resid = residuals(fit_ols)),
+       aes(fitted, resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = 2) +
+  labs(x = "Fitted value", y = "Residual", title = "Residuals vs fitted")
+
+bp <- lmtest::bptest(fit_ols)
+```
+
+From the residuals vs fitted plot, the constant variance assumption does not hold: as the fitted value increases, the residuals spread out more widely around zero, forming a funnel shape. The error variance increases with income.
+
+**(b)**
+Accoding to the background, "Assume that the residual variance grows linearly with income". Thus, I can find $\text{Var}(\epsilon_i) = \sigma^2 \cdot \text{income}_i$, and the weights are $w_i = 1/\text{income}_i$.
+
+```{r p1b, echo=TRUE}
+fit_wls <- lm(gamble ~ income, data = teengamb, weights = 1 / income)
+make_tab <- function(fit, model) {
+                                  tibble(Model = model,
+                                         Term = names(coef(fit)),
+                                         Estimate = coef(fit),
+                                         SE = summary(fit)$coefficients[, 2],
+                                         `2.5 %` = confint(fit)[, 1],
+                                         `97.5 %` = confint(fit)[, 2])
+                                }
+
+bind_rows(make_tab(fit_ols, "OLS"), make_tab(fit_wls, "WLS")) |>
+  knitr::kable(digits = 3, caption = "OLS and WLS estimates with 95% confidence intervals")
+```
+
+I assume the observations with higher income are noisier and receive less weight.
+
+The WLS slope is 4.66, with 95% CI (2.54, 6.78), smaller than the OLS slope of 5.52. The WLS intercept is closer to 0 and has a smaller standard error (3.78 vs 6.03). The OLS standard errors assume constant variance and are not valid here, so the OLS intervals should not be trusted.
+
+**(c)**
+
+I use bootstrap to resample rows and refit the WLS model, finally record the coefficients and $\hat\sigma^2$ (the residual variance at income = 1).
+
+```{r p1c, echo=TRUE}
+set.seed(10)
+B <- 2000
+boot_wls <- replicate(B, {
+  d <- teengamb[sample(nrow(teengamb), replace = TRUE), ]
+  f <- lm(gamble ~ income, data = d, weights = 1 / income)
+  c(coef(f), sigma2 = sigma(f)^2)
+})
+boot_ci <- t(apply(boot_wls, 1, quantile, probs = c(0.025, 0.975)))
+boot_ci <- cbind(Estimate = c(coef(fit_wls), sigma(fit_wls)^2), boot_ci)
+rownames(boot_ci) <- c("(Intercept)", "income", "sigma^2 (income = 1)")
+knitr::kable(boot_ci, digits = 3, caption = "Bootstrap 95% percentile intervals (B = 2000)")
+```
+
+
+**(d)**
+
+```{r p1d, fig.height=4, fig.width=6, echo=TRUE}
+pred <- predict(fit_wls, newdata = teengamb, interval = "prediction", weights = 1 / teengamb$income)
+plot_df <- cbind(teengamb, pred)
+
+ggplot(plot_df, aes(x = income)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), fill = "grey80") +
+  geom_line(aes(y = fit), color = "blue") +
+  geom_point(aes(y = gamble)) +
+  labs(x = "Income", y = "Gamble", title = "WLS fit with 95% prediction intervals")
+```
+
+**(e)**
+
+```{r p1e, echo=TRUE}
+fit_rlm <- MASS::rlm(gamble ~ income, data = teengamb)
+coef_cmp <- rbind(OLS = coef(fit_ols), WLS = coef(fit_wls), RLM = coef(fit_rlm))
+se_cmp <- rbind(OLS = summary(fit_ols)$coef[, 2], WLS = summary(fit_wls)$coef[, 2],
+                RLM = summary(fit_rlm)$coef[, 2])
+colnames(se_cmp) <- paste("SE", colnames(se_cmp))
+knitr::kable(cbind(coef_cmp, se_cmp), digits = 3, caption = "OLS, WLS and robust (Huber) estimates")
+```
+
+The rlm slope (5.02) lies between the OLS slope (5.52) and the WLS slope (4.66). WLS down-weights teens with high income, while rlm down-weights teens with large residuals. All three methods agree that gambling increases with income.Both methods give a smaller slope than OLS, because a few high-income teens with very large expenditures pull the OLS slope up.
+
+**(f)**
+
+```{r p1f, echo=TRUE}
+# Negative log-likelihood of a linear model with t3 errors
+nll_t <- function(par, x, y) {
+  s <- exp(par[3])                      # scale, kept positive
+  r <- (y - par[1] - par[2] * x) / s    # standardized residuals
+  -sum(dt(r, df = 3, log = TRUE) - log(s))
+}
+
+# Fit the t3 regression with optim, starting from the OLS fit
+fit_t <- function(d) {
+  start <- c(coef(lm(gamble ~ income, data = d)), log(sd(d$gamble)))
+  optim(start, nll_t, x = d$income, y = d$gamble)$par[1:2]
+}
+
+fit_t(teengamb)
+
+# Bootstrap
+set.seed(10)
+boot_t <- replicate(2000, fit_t(teengamb[sample(nrow(teengamb), replace = TRUE), ]))
+t(apply(boot_t, 1, quantile, probs = c(0.025, 0.975)))
+```
+
+The t3 regression gives a slope of 4.65, close to the WLS slope and smaller than the OLS slope (5.52). The bootstrap 95% interval for the slope is (0.15, 6.99). It excludes 0, so income has a positive effect.
+
+## Problem 2
+
+Standard multiple testing guarantees are given assuming independent tests.  In general, test statistics for regression coefficients are correlated.
+
+(a) Assume you have $p=300$ predictors and $n=1000$ observations. Let $y = X\beta + \epsilon$ (no intercept), where the first 10 coefficients in $\beta$ equal $0.2$ and the last 90 are 0.  Generate $X \sim N(0, 1)$ for each feature.  Run a simulation where you generate data from this model many times.  Fit the linear model and use both Benjamini-Hochberg and the q-value correction to select discoveries controlling the FDR at $0.05$. For each simulated dataset compute 1) the false discovery proportion and 2) the sensitivity (the fraction of the 10 significant predictors that were correctly declared successes).  Plot the distribution FDP and sensitivity for both BH and Q-value approaches using histograms or a beeswarm plot or something similar.
+
+(b) Now consider generating data assuming correlated covariates drawn from a multivariate normal, $X \sim N(\mu, \Sigma)$ with $\Sigma$ an equicorrelation matrix:
+
+\begin{equation}
+\Sigma =
+\begin{pmatrix}
+1      & \rho   & \cdots & \rho   \\
+\rho   & 1      & \cdots & \rho   \\
+\vdots & \vdots & \ddots & \vdots \\
+\rho   & \rho   & \cdots & 1
+\end{pmatrix}
+\end{equation}
+
+To investigate how problematic positive equicorrelation is for these procedures, repeat part (a) for each of $\rho \in \{0.25, 0.5, 0.75\}$. Plot the distributions as a function of $\rho$.  What can you conclude about how positive equicorrelation amongst the predictors impacts the false discovery proportions? How does it impact sensitivity?
+
+### Solution
+
+**Simulation design.** I set $p = 300$ and $n = 1000$. The first 10 coefficients are 0.2 (true signals) and the other 290 are 0 (nulls). Because I choose the true coefficients ourselves, I know which predictors are real, so I can check how well BH and q-value perform. Part (a) is the case $\rho = 0$ (independent predictors), and part (b) repeats the same experiment with $\rho = 0.25, 0.5, 0.75$.
+
+**Step 1: one simulated experiment.** I write a function that runs a single experiment for a given $\rho$ and returns four scores(estimate, SE, T-value, P-value). the experiment design as below,
+
+- *Generate X.* `Sigma` is the correlation matrix from the problem: 1 on the diagonal (each predictor has variance 1) and $\rho$ everywhere else. `mvrnorm` draws 1000 rows of X from $N(0, \Sigma)$. When $\rho = 0$, $\Sigma$ is the identity matrix, which is the independent case in part (a).
+- *Generate y.* I set the true coefficients and compute $y = X\beta + \epsilon$ with $\epsilon \sim N(0, 1)$.
+- *Fit the model.* I regress y on all 300 predictors without an intercept (`- 1`) and keep the 300 p-values.
+- *Select predictors.* BH and q-value each adjust the 300 p-values to control the FDR, and I keep the predictors with adjusted value below 0.05. `which()` returns their index numbers.
+- *Score the selection.* Indices 1-10 are true signals and 11-300 are nulls. FDP is the share of selected predictors with index above 10 (false discoveries); if nothing is selected, FDP is 0. Sensitivity is the share of the 10 true signals that were selected.
+
+```{r p2-fun, echo=TRUE}
+one_sim <- function(rho) {
+  # 1. Generate X with pairwise correlation rho
+  Sigma <- matrix(rho, 300, 300)
+  diag(Sigma) <- 1
+  X <- MASS::mvrnorm(1000, rep(0, 300), Sigma)
+
+  # 2. Generate y: first 10 predictors matter, the other 290 do not
+  beta <- c(rep(0.2, 10), rep(0, 290))
+  y <- X %*% beta + rnorm(1000)
+
+  # 3. Fit the model and get 300 p-values
+  pvals <- summary(lm(y ~ X - 1))$coefficients[, 4]
+
+  # 4. Which predictors are selected?
+  bh <- which(p.adjust(pvals, method = "BH") < 0.05)
+  qv <- which(qvalue(pvals)$qvalues < 0.05)
+
+  # 5. Score: FDP = share of selected that are > 10; sensitivity = share of 1-10 found
+  fdp <- function(s) if (length(s) == 0) 0 else mean(s > 10)
+  c(FDP_BH = fdp(bh), Sens_BH = sum(bh <= 10) / 10,
+    FDP_Q  = fdp(qv), Sens_Q  = sum(qv <= 10) / 10)
+}
+```
+
+**Step 2: repeat the experiment.** A single experiment depends on the random draw, so I repeat it 200 times for each value of $\rho$. `replicate(200, one_sim(rho))` runs the experiment 200 times, and `t()` turns the result into 200 rows with four columns. I stack the results for all four values of $\rho$ into one data frame, `results`, with 800 rows = 200*4. `set.seed` makes the results reproducible.
+
+```{r p2-sim, echo=TRUE}
+set.seed(10)
+results <- NULL
+for (rho in c(0, 0.25, 0.5, 0.75)) {
+  out <- t(replicate(200, one_sim(rho)))
+  results <- rbind(results, data.frame(rho = rho, out))
+}
+```
+
+**(a) Independent predictors ($\rho = 0$).** I keep only the runs with $\rho = 0$ and draw a histogram of each score. Each histogram shows how FDP or sensitivity varies across the 200 simulated datasets.
+
+```{r p2a, echo=TRUE, fig.height=5, fig.width=7}
+a <- results[results$rho == 0, ]
+par(mfrow = c(2, 2))
+hist(a$FDP_BH,  main = "FDP (BH)",              xlab = "")
+hist(a$FDP_Q,   main = "FDP (q-value)",         xlab = "")
+hist(a$Sens_BH, main = "Sensitivity (BH)",      xlab = "")
+hist(a$Sens_Q,  main = "Sensitivity (q-value)", xlab = "")
+```
+
+**(b) Correlated predictors.** To see how the scores change with $\rho$, I draw one boxplot per value of $\rho$ for each score. Each box summarizes the 200 runs at that $\rho$.
+
+```{r p2b, echo=TRUE, fig.height=5, fig.width=7}
+par(mfrow = c(2, 2))
+boxplot(FDP_BH  ~ rho, data = results, main = "FDP (BH)")
+boxplot(FDP_Q   ~ rho, data = results, main = "FDP (q-value)")
+boxplot(Sens_BH ~ rho, data = results, main = "Sensitivity (BH)")
+boxplot(Sens_Q  ~ rho, data = results, main = "Sensitivity (q-value)")
+```
+
+**Average scores.** 
+```{r p2-mean, echo=TRUE}
+aggregate(. ~ rho, data = results, FUN = mean)
+```
+
+**Conclusions.**
+
+Part (a) is the baseline. With independent predictors (ρ = 0), both methods work as intended. The mean FDP is 0.040 for BH and 0.047 for q-value, both below the target of 0.05, and the mean sensitivity is about 0.98, so almost all 10 true signals are found.
+
+*Impact on the FDP.* Predictors correlation does not inflate the FDR. The mean FDP stays between 0.040 and 0.052 for every value of ρ, close to the target of 0.05. However, at ρ = 0.75 the FDP varies more across runs: most runs select very few predictors with FDP close to 0, but more outliers in the boxplot show.
+
+*Impact on sensitivity.* As ρ increases, both methods still find some of the true signals, but they miss more and more of them. On average, BH finds 9.8 of the 10 true signals at ρ = 0, but only 9.2, 6.8 and 1.8 at ρ = 0.25, 0.5 and 0.75. Combined with the stable FDP, this means the selected predictors are still mostly correct, but the selection becomes incomplete. When predictors are highly correlated, it is hard to tell which one drives y, so the true signals are less often significant and are missed.
+
+## Problem 3
+
+Run a regression with `prostate` data in `faraway` library with `lpsa` as the response variable and the other variables as covariates.
+
+(a) Select the best model using each of (1) AIC (either forward or backward selection); (2) best subset selection with cross-validation; and (3) LASSO with cross-validation. How much agreement is there between approaches?
+
+(b)  Can you improve the model by adding higher order terms? Can you improve the model by adding multiplicative interaction terms? Use any selection approache of choice to settle on a "final" model.
+
+### Solution
+
+**(a)**
+
+```{r p3a}
+head(prostate)
+```
+*(1) Backward AIC* selects: lcavol, lweight, age, lbph, svi.
+
+```{r p3a-aic, echo=TRUE}
+set.seed(10)
+full <- lm(lpsa ~ ., data = prostate)
+fit_aic <- step(full, direction = "backward", trace = 0)
+paste(attr(terms(fit_aic), "term.labels"), collapse = ", ")
+```
+
+*(2) Best subset + 10-fold CV.* selects: lcavol, lweight, svi
+
+```{r p3a-subset, fig.height=3, fig.width=5, echo=TRUE}
+K <- 10
+nobs <- nrow(prostate)
+folds <- sample(rep(1:K, length.out = nobs))   # assign each row to one of 10 folds
+
+# Step 1: best combination of variables for each model size (1 to 8)
+rs <- regsubsets(lpsa ~ ., data = prostate, nvmax = 8)
+vars <- summary(rs)$which[, -1]                # TRUE = variable is in the model
+
+# Step 2: 10-fold CV error for each of the 8 candidate models
+cv_mse <- numeric(8)
+for (m in 1:8) {
+  form <- reformulate(colnames(vars)[vars[m, ]], response = "lpsa")
+  errs <- numeric(K)
+  for (k in 1:K) {
+    fit  <- lm(form, data = prostate[folds != k, ])   # fit on 9 folds
+    test <- prostate[folds == k, ]                    # test on the remaining fold
+    errs[k] <- mean((test$lpsa - predict(fit, test))^2)
+  }
+  cv_mse[m] <- mean(errs)
+}
+
+# Step 3: pick the size with the smallest CV error
+plot(1:8, cv_mse, type = "b", xlab = "Model size", ylab = "10-fold CV MSE",
+     main = "Best subset selection")
+best_size <- which.min(cv_mse)
+vars_sub <- colnames(vars)[vars[best_size, ]]
+vars_sub
+```
+
+*(3) LASSO + 10-fold CV.* selects: lcavol, lweight, svi
+
+```{r p3a-lasso, fig.height=3.5, fig.width=5, echo=TRUE}
+X <- model.matrix(lpsa ~ ., prostate)[, -1]
+cv_lasso <- cv.glmnet(X, prostate$lpsa, alpha = 1, foldid = folds)
+plot(cv_lasso)
+
+nz <- function(s) {
+  cf <- coef(cv_lasso, s = s)
+  rownames(cf)[as.vector(cf != 0)][-1]
+}
+vars_lasso_min <- nz("lambda.min")
+vars_lasso_1se <- nz("lambda.1se")
+vars_lasso_1se
+```
+
+
+```{r p3a-compare, echo=TRUE}
+all_vars <- colnames(X)
+sel <- list(`AIC (backward)` = attr(terms(fit_aic), "term.labels"),
+            `Best subset (CV)` = vars_sub,
+            `LASSO (1-SE)` = vars_lasso_1se)
+agree <- sapply(sel, \(v) ifelse(all_vars %in% v, "x", ""))
+rownames(agree) <- all_vars
+knitr::kable(agree, align = "c", caption = "Variables selected by each method")
+```
+
+There is strong agreement between the three approaches. All of them select `lcavol`, `lweight` and `svi`, so these are the core predictors of `lpsa`. Best subset with CV and LASSO at lambda.1se choose exactly the same three-variable model. The only difference is that AIC also keeps `age` and `lbph`. 
+
+**(b)**
+
+I start from the AIC model in (a), `lpsa ~ lcavol + lweight + age + lbph + svi`, and build two larger models.
+
+- *Higher-order terms.* I add the squares of the four continuous variables except the `svi` because it was recorded as a binary(0 or 1). A squared term lets the relationship between a variable and `lpsa` be curved instead of a straight line.
+- *Interaction terms.* We add all pairwise products of the five variables. An interaction such as `lweight:svi` lets the effect of `lweight` depend on the value of `svi`. 
+
+```{r p3b-fit, echo=TRUE}
+# Model 1: main effects (the AIC model from part a)
+fit_main <- fit_aic
+
+# Model 2: main effects + squared terms
+fit_sq <- lm(lpsa ~ lcavol + lweight + age + lbph + svi +
+               I(lcavol^2) + I(lweight^2) + I(age^2) + I(lbph^2), data = prostate)
+
+# Model 3: main effects + all pairwise interactions
+fit_int <- lm(lpsa ~ (lcavol + lweight + age + lbph + svi)^2, data = prostate)
+```
+
+To decide whether the extra terms improve the model, we compare the AIC of the three models. AIC balances fit against the number of terms, and lower is better.
+
+```{r p3b-compare, echo=TRUE}
+data.frame(model   = c("Main effects", "+ squared terms", "+ interactions"),
+           n_terms = c(length(coef(fit_main)), length(coef(fit_sq)), length(coef(fit_int))) - 1,
+           AIC     = round(c(AIC(fit_main), AIC(fit_sq), AIC(fit_int)), 2))
+```
+
+**Results.** Adding squared terms increases the AIC from 215.9 to 220.6, and adding interactions increases it to 221.5. Neither extension improves the model: the extra terms add complexity without improving the fit enough.
+
+**Final model.** The main-effects model has the lowest AIC, so we keep it as the final model:
+
+```{r p3b-final, echo=TRUE}
+final <- fit_main
+summary(final)
+```
+
+The final model is `lpsa ~ lcavol + lweight + age + lbph + svi`, with adjusted $R^2$ = 0.6245. `lcavol`, `lweight` and `svi` have clear positive effects on `lpsa`, while `age` and `lbph` are weaker.
+

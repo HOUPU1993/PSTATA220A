@@ -1,0 +1,433 @@
+---
+title: "PSTAT220A Homework 2"
+subtitle: "Due 10/25/2026"
+author: "Houpu Li"
+format:
+  pdf:
+    geometry:
+      - top=30mm
+      - left=30mm
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+library(faraway)
+library(carData)
+library(sandwich)   # HC (EHW) covariance
+library(lmtest)     # coeftest, bptest, dwtest, bgtest
+library(ellipse)    # joint confidence region
+knitr::opts_chunk$set(message = FALSE, warning = FALSE)
+options(width = 80)
+set.seed(220)
+```
+
+
+## Problem 1 (35 pt)
+
+The dataset `Salaries` in library `carData` concerns the salaries for Professors in 2008-2009. Please read the `Salaries` documentation for a full description of the data.
+
+### a) Numerical and Graphical summary of the data
+
+```{r p1a}
+data(Salaries)
+head(Salaries)
+summary(Salaries)
+
+Salaries %>% group_by(rank) %>% summarise(n = n(), mean = mean(salary), sd = sd(salary))
+Salaries %>% group_by(sex) %>% summarise(n = n(), mean = mean(salary), sd = sd(salary))
+Salaries %>% group_by(discipline) %>% summarise(n = n(), mean = mean(salary), sd = sd(salary))
+```
+
+```{r p1a-plots, fig.height=6}
+p1 <- ggplot(Salaries, aes(sex, salary, fill = sex)) + geom_boxplot() +
+  facet_wrap(~ rank) + labs(title = "Salary by sex, within rank") +
+  theme(legend.position = "none")
+p2 <- ggplot(Salaries, aes(discipline, salary, fill = sex)) + geom_boxplot() +
+  facet_wrap(~ rank) + labs(title = "Salary by sex and discipline, within rank") +
+  theme(legend.position = "bottom")
+p3 <- ggplot(Salaries, aes(yrs.since.phd, salary, colour = sex)) + geom_point(alpha = .6) +
+  facet_wrap(~ rank, scales = "free_x") +
+  labs(title = "Salary by sex and years since PhD, within rank") +
+  theme(legend.position = "bottom")
+gridExtra::grid.arrange(p1, p2, p3, ncol = 1)
+```
+
+**Comments.**
+* Sampling bias: The sample is unbalanced. We have more data from men (358) than women (39), and more data from professors.
+* Sex bias: The median salary level is very similar, no matter the rank, whether asstprof, assocprof, or prof, but the variance is different. Specifically, within the ranks of assocprof and prof, the variance for females is a little narrower than for males, but for assocprof, it is broader than male.
+* Rank bias: We can find there is a very clear income rank pattern: prof > assoc prof > asst prof.
+* Discipline bias: We can not only find that the salary of discipline B is always higher than that of discipline A, but the variance also increases as the rank increases.
+* Years since PhD bias: We can find two interesting findings. Firstly, most asstprofs are within 0–10 years after their PhD, most assocprofs are concentrated within 10–20 years after their PhD, and most profs are within 20–40 years after their PhD. Secondly, it is straightforward that higher ranks usually align with higher income variance.
+
+### b) Linear regression
+
+```{r p1b}
+fit <- lm(salary ~ rank + discipline + yrs.since.phd + yrs.service + sex, data = Salaries)
+summary(fit)
+```
+
+At the 5% significance level, we find that rank, discipline, years since PhD, and years of service are significantly associated with salary. Professors with higher ranks and those in discipline B tend to earn more. Years since PhD is positively associated with salary, while years of service is negatively associated with salary，one potential explaination is that there maybe colinerity correlation between years of service and years since PhD. Moreover, we do not find a significant salary difference between males and females after controlling for other variables.
+
+### c) Matrix LS solution
+
+```{r p1c}
+X <- model.matrix(fit)
+y <- Salaries$salary
+
+# B_hat = (X'X)^{-1} X'y
+beta_hat <- solve(t(X) %*% X) %*% t(X) %*% y  
+cbind(matrix = drop(beta_hat), lm = coef(fit))
+all.equal(drop(beta_hat), coef(fit), check.attributes = FALSE)
+```
+
+### d) Variation explained
+
+```{r p1d}
+c(R2 = summary(fit)$r.squared, adjR2 = summary(fit)$adj.r.squared)
+```
+
+The covariates explain about **45.47%** (unadjusted $R^2$) of the variation in salary. The adjusted $R^2$(**44.63%**) penalizes the number of input features. It is the better choice for comparing models of different sizes or for estimating the difference.
+
+### e) Largest absolute residual
+
+```{r p1e}
+i_max <- which.max(abs(resid(fit)))
+i_max; resid(fit)[i_max]
+Salaries[i_max, ]
+```
+
+Observation *row 44* has the largest absolute residual (about + *+$99,592*).
+
+### f) 99% CIs
+
+```{r p1f}
+confint(fit, c("yrs.since.phd", "yrs.service"), level = 0.99)
+confint(fit, c("yrs.since.phd", "yrs.service"), level = 0.95)
+```
+
+Both 99% confidence intervals of years since phd and years service contain 0. Thus even these coefficients are significant at 5% but not at 1%.
+
+### g) 95% joint confidence region
+
+```{r p1g, fig.width=5, fig.height=5}
+idx <- c("yrs.since.phd", "yrs.service")
+cr <- ellipse(fit, which = idx, level = 0.95)
+ci <- confint(fit, idx, level = 0.95)
+plot(cr, type = "l", xlab = idx[1], ylab = idx[2],
+     main = "95% joint confidence region")
+points(coef(fit)[idx[1]], coef(fit)[idx[2]], pch = 19)
+abline(v = ci[1, ], h = ci[2, ], lty = 2, col = "grey40")
+```
+The 95% joint confidence region for years of service and years since PhD is an ellipse. Since these two variables are positively correlated, their coefficient estimates tend to be negatively correlated, making the ellipse elongated and directed downward to the right(this ellipse only can reflect the correlation of esitimate coefficient, not correlation between variables). This means we can estimate their combined effect more precisely, but it is difficult to separate their individual effects. 
+
+### h) Pointwise and simultaneous 95% bands
+
+I take yrs.since.phd as the main variable of interest, letting it range from the median of yrs.service (16 years) to its maximum, and hold the other covariates fixed at rank = Prof, discipline = B, sex = Male, and yrs.service at its median.
+
+```{r p1h}
+new <- data.frame(yrs.since.phd = median(Salaries$yrs.service):max(Salaries$yrs.since.phd),
+                  yrs.service   = median(Salaries$yrs.service),   
+                  rank = "Prof", discipline = "B", sex = "Male")
+
+ci <- predict(fit, new, interval = "confidence", level = 0.95)  
+pi <- predict(fit, new, interval = "prediction", level = 0.95)  
+
+x <- new$yrs.since.phd
+plot(x, ci[, "fit"], type = "l", lwd = 2, ylim = range(pi),
+     xlab = "yrs.since.phd", ylab = "salary",
+     main = "95% CI (mean) and PI (new obs)")
+lines(x, ci[, "lwr"], col = "blue", lty = 2); lines(x, ci[, "upr"], col = "blue", lty = 2)
+lines(x, pi[, "lwr"], col = "red",  lty = 2); lines(x, pi[, "upr"], col = "red",  lty = 2)
+legend("topleft", bty = "n", lty = c(1, 2, 2), col = c("black", "blue", "red"),
+       legend = c("fitted mean", "95% CI for mean", "95% PI for new observation"))
+```
+
+Prediction bands are much wider than mean bands because they include the individual random error $\sigma^2$:
+
+$$
+\text{CI: } \hat y_0 \pm t_{0.975,\,n-p}\,\hat\sigma\sqrt{x_0^T(X^TX)^{-1}x_0}, \qquad
+\text{PI: } \hat y_0 \pm t_{0.975,\,n-p}\,\hat\sigma\sqrt{1 + x_0^T(X^TX)^{-1}x_0}
+$$
+
+### i) Partial $R^2$ for `yrs.since.phd`
+
+```{r p1i}
+fit_red <- update(fit, . ~ . - yrs.since.phd)
+partialR2 <- (deviance(fit_red) - deviance(fit)) / deviance(fit_red)
+partialR2
+```
+
+Partial $R^2$(~0.0125) for yrs.since.phd presents if we add variable yrs.since.phd, 1.25% of rest variance can be explianed. in other words, that means the independent function of feature yrs.since.phd.
+
+### j) EHW (heteroskedasticity-consistent) standard errors
+
+```{r p1j}
+se_lm  <- sqrt(diag(vcov(fit)))              
+se_ehw <- sqrt(diag(vcovHC(fit, type = "HC0")))   
+cbind(lm = se_lm, EHW = se_ehw)
+coeftest(fit, vcov. = vcovHC(fit, type = "HC0"))
+
+plot(fitted(fit), resid(fit), xlab = "Fitted", ylab = "Residuals"); abline(h = 0)
+bptest(fit)
+```
+From the residuals-vs-fitted plot (the spread of residuals widens as fitted salary increases) and the Breusch–Pagan test (p ≈ 4e-12), we conclude there is significant heteroskedasticity. We therefore use the EHW (HC0) estimator to obtain heteroskedasticity-robust standard error.
+
+
+## Problem 2 (25 pt)
+
+A series of $n + 1$ observations $y_i$ ($i = 1, \ldots, n + 1$) are taken from a normal distribution with unknown variance $\sigma^2$. After the first $n$ observations it is suspected that there is a sudden change in the mean of the distribution. That is, assume the first $n$ observations are iid   $y_1, ..., y_n \sim N(\mu, \sigma^2)$  the $y_{(n + 1)} \sim N(\mu + \delta, \sigma^2)$.
+
+### a) Matrix form
+
+$$
+\underbrace{\begin{pmatrix} y_1\\ \vdots \\ y_n \\ y_{n+1}\end{pmatrix}}_{y}
+=
+\underbrace{\begin{pmatrix} 1 & 0\\ \vdots & \vdots\\ 1 & 0\\ 1 & 1\end{pmatrix}}_{X}
+\underbrace{\begin{pmatrix}\mu\\ \delta\end{pmatrix}}_{\beta}
++ \epsilon,\qquad \epsilon \sim N(0, \sigma^2 I_{n+1}).
+$$
+
+### b) LS estimates
+
+$$
+X^TX = \begin{pmatrix} n+1 & 1\\ 1 & 1\end{pmatrix},\quad
+(X^TX)^{-1} = \frac{1}{n}\begin{pmatrix} 1 & -1\\ -1 & n+1\end{pmatrix},\quad
+X^Ty = \begin{pmatrix} \sum_{i=1}^{n+1} y_i \\ y_{n+1}\end{pmatrix}.
+$$
+
+So $\hat\beta = (X^TX)^{-1}X^Ty$ gives
+
+$$
+\hat\mu = \frac{1}{n}\Big(\sum_{i=1}^{n+1}y_i - y_{n+1}\Big) = \bar y_n = \frac1n\sum_{i=1}^n y_i,\qquad
+\hat\delta = \frac{1}{n}\Big(-\sum_{i=1}^{n+1}y_i + (n+1)y_{n+1}\Big) = y_{n+1} - \bar y_n .
+$$
+
+### c) Test statistic for $H_0:\delta = 0$
+We want to test whether the $(n+1)$st observation has the same mean as the first $n$:
+
+$$
+H_0: \delta = 0 \qquad \text{vs.} \qquad H_1: \delta \neq 0 .
+$$
+
+The natural test statistic compares the estimated jump $\hat\delta$ to its standard error.
+
+**Step 1: ** From (b), $\hat\delta = y_{n+1} - \bar y_n$.
+
+**Step 2:** Since $y_{n+1}$ and $\bar y_n$ are independent,
+
+$$
+\mathrm{Var}(\hat\delta) = \mathrm{Var}(y_{n+1}) + \mathrm{Var}(\bar y_n) = \sigma^2 + \frac{\sigma^2}{n} = \sigma^2\left(1 + \frac{1}{n}\right).
+$$
+
+**Step 3:** Because $\sigma^2$ is unknown, we estimate it from the first $n$ observations, which all share the same mean $\mu$:
+
+$$
+\hat\sigma^2 = s_n^2 = \frac{1}{n-1}\sum_{i=1}^{n}(y_i - \bar y_n)^2 .
+$$
+
+**Step 4: the test statistic.** Dividing the estimate by its estimated standard error gives
+
+$$
+T = \frac{\hat\delta}{\hat\sigma\sqrt{1 + 1/n}} = \frac{y_{n+1} - \bar y_n}{s_n\sqrt{1 + 1/n}} \;\overset{H_0}{\sim}\; t_{n-1}
+$$
+
+We reject $H_0$ at level $\alpha$ (two-sided) if $|T| > t_{n-1,\,1-\alpha/2}$. Intuitively, $T$ measures how many standard errors the new observation lies from the previous average; if this is too large to be explained by normal random variation, we conclude that the mean has shifted.
+
+### d) Power by simulation ($\sigma^2 = 1$, $\delta = 2$)
+```{r p2d}
+n <- 10; delta <- 2; B <- 10000
+crit <- qt(0.975, df = n - 1)                  
+
+T_sim <- replicate(B, {
+  y <- c(rnorm(n, 0, 1), rnorm(1, delta, 1))   
+  (y[n + 1] - mean(y[1:n])) / (sd(y[1:n]) * sqrt(1 + 1/n))   
+})
+
+hist(T_sim, breaks = 50, main = "Simulated T when delta = 2")
+abline(v = c(-crit, crit), col = "red", lty = 2)  
+mean(abs(T_sim) > crit)                          
+```
+We set $n = 10$ and $\mu = 0$ (the value of $\mu$ does not affect $T$), and simulate $B = 10{,}000$ datasets with $\sigma^2 = 1$ and $\delta = 2$. For a two-sided test at the 5% level, we reject $H_0$ when $|T| > t_{9,\,0.975} \approx 2.26$. The simulated power is about **0.4003**, meaning that even when the mean truly shifts by 2 standard deviations, the test detects it only about 40% of the time. 
+
+## Problem 3 (25 pt)
+**AI use disclosure:** For this problem, I used an AI assistant to help write the simulation code. I went through each step and understand what it does and why.
+
+### Simulation setup
+
+**Step 1. Choose the true model.**
+I use $n = 20$ observations and two covariates. The true model is
+
+$$
+y = 1 + 0 \cdot x_1 + 0.5 \cdot x_2 + \varepsilon,
+$$
+
+So $\beta = (\beta_0, \beta_1, \beta_2) = (1, 0, 0.5)$. I need both zero and nonzero coefficients because part (c) asks for two different things. If every coefficient were nonzero, every rejection would be correct, and I could not measure the Type I error. If every coefficient were zero, every rejection would be wrong, and I could not measure power. So I set $\beta_1 = 0$: here $H_0$ is true, and its rejection rate is the Type I error. For $\beta_0 = 1$ and $\beta_2 = 0.5$, $H_0$ is false, and their rejection rates are the power.
+
+**Step 2. Generate data.** In each simulation I draw new errors $\varepsilon$, compute $y$, and fit the regression with `lm()`.
+
+**Step 3. Record three things.** For each coefficient I save:
+
+* the statistic $(\hat\beta_j - \beta_j) / SE(\hat\beta_j)$, for part (a);
+* whether the 95% confidence interval contains the true $\beta_j$, for part (b);
+* whether the p-value for $H_0: \beta_j = 0$ is below 0.05, for part (c).
+
+**Step 4. Repeat.** I repeat Steps 2–3 $B = 5000$ times and summarize the results.
+
+**Step 5. Change the errors.** I run the same simulation three times with different error distributions: normal, heavy-tailed, and skewed. All three have mean 0 and variance 1, so they differ only in shape.
+
+```{r p3-sim}
+set.seed(220)
+n <- 20                   # sample size
+B <- 5000                 # number of replications
+beta <- c(1, 0, 0.5)      # true coefficients
+x1 <- runif(n)            # covariates, fixed across replications
+x2 <- rnorm(n)
+
+# make_error: a function that generates n random errors
+run_sim <- function(make_error) {
+  tstat  <- matrix(NA, B, 3)   # (a) t statistics
+  cover  <- matrix(NA, B, 3)   # (b) does the CI contain the true beta?
+  reject <- matrix(NA, B, 3)   # (c) do we reject H0: beta = 0?
+  for (b in 1:B) {
+    y   <- beta[1] + beta[2] * x1 + beta[3] * x2 + make_error(n)
+    fit <- lm(y ~ x1 + x2)
+    est <- coef(fit)
+    se  <- sqrt(diag(vcov(fit)))
+    ci  <- confint(fit, level = 0.95)
+    tstat[b, ]  <- (est - beta) / se
+    cover[b, ]  <- (ci[, 1] <= beta) & (beta <= ci[, 2])
+    reject[b, ] <- summary(fit)$coefficients[, 4] < 0.05
+  }
+  list(tstat = tstat, coverage = colMeans(cover), reject = colMeans(reject))
+}
+```
+
+### a) Distribution of the t statistic (normal errors)
+
+```{r p3-a}
+normal <- run_sim(function(n) rnorm(n))
+
+par(mfrow = c(1, 3))
+for (j in 1:3) {
+  hist(normal$tstat[, j], breaks = 50, freq = FALSE, xlim = c(-5, 5),
+       main = paste0("beta", j - 1), xlab = "t statistic")
+  curve(dt(x, df = n - 3), add = TRUE, col = "red", lwd = 2)
+}
+par(mfrow = c(1, 1))
+```
+
+The histograms show the 5000 t statistics I got from the simulation. The red curve is the t distribution with $n - p = 20 - 3 = 17$ degrees of freedom. For all three coefficients, the histogram and the red curve have the same shape, so the simulated statistics really do follow $t_{17}$. This matches the theory: when the errors are normal, the standardized statistic $(\hat\beta_j - \beta_j)/SE(\hat\beta_j)$ follows a $t_{n-p}$ distribution.
+
+### b) Coverage of the confidence intervals
+
+```{r p3-b}
+normal$coverage
+```
+
+The coverage is about 0.95 for every coefficient (0.948, 0.951, 0.948). With 5000 replications, the Monte Carlo error is about $\pm 0.006$, so these values are consistent with the nominal 95%. The intervals have the desired coverage.
+
+### c) Type I error and power
+
+```{r p3-c}
+normal$reject
+```
+
+* **Type I error:** For $\beta_1 = 0$, the null is true, and we reject it in about 4.9% of simulations.
+* **Power:** For $\beta_0 = 1$ and $\beta_2 = 0.5$, the null is false. We reject it about 71% and 68% of the simulations.
+
+### d) Non-normal errors
+**AI use disclosure:** I used an AI to explain how the heavy-tailed and skewed error distributions check works, and how to read the results. I then checked the output and rewrote the explanation in my own words.
+
+I repeat the simulation with two other error distributions, specifically,
+
+```{r p3-d}
+heavy  <- run_sim(function(n) rt(n, df = 3) / sqrt(3)) # ai help me design that
+skewed <- run_sim(function(n) rexp(n) - 1) # ai help me design that
+
+results <- rbind(normal = c(normal$coverage, normal$reject),
+                 heavy  = c(heavy$coverage,  heavy$reject),
+                 skewed = c(skewed$coverage, skewed$reject))
+colnames(results) <- c("cover_b0", "cover_b1", "cover_b2",
+                       "reject_b0", "reject_b1", "reject_b2")
+round(results, 3)
+
+# How often the t statistic for beta0 falls in each tail
+# (each should be about 2.5% if the t distribution is correct)
+q <- qt(0.975, df = n - 3)
+tails <- rbind(normal = c(mean(normal$tstat[, 1] < -q), mean(normal$tstat[, 1] > q)),
+               heavy  = c(mean(heavy$tstat[, 1]  < -q), mean(heavy$tstat[, 1]  > q)),
+               skewed = c(mean(skewed$tstat[, 1] < -q), mean(skewed$tstat[, 1] > q)))
+colnames(tails) <- c("lower tail", "upper tail")
+round(tails, 3)
+```
+
+**Heavy-tailed errors.**The results are still very similar to normal errors. The coverage is close to 95%, and the Type I error is close to 5%. The rejection rates in the left and right tails are also similar (2.2% vs. 2.0%), suggesting that the t-test still works well.
+
+**Skewed errors.** At first the results also look fine: coverage is about 95% (0.943, 0.952, 0.946) and the Type I error for $\beta_1$ is 4.8%. However, the rejection rates in the two tails are very different (4.6% vs. 1.1%), suggesting that the t statistic is no longer symmetric.
+
+**Which is worse?** Skewed errors are worse. With heavy-tailed errors, the rejection rates in the left and right tails are similar (2.2% vs. 2.0%), suggesting that the shape of the t-statistic distribution has not changed much and the t-test still works well. However, with skewed errors, the rejection rates in the two tails are very unbalanced (4.6% vs. 1.1%), indicating that the distribution of the t statistic has become skewed and the \(t_{17}\) distribution can no longer accurately describe it.
+
+## Problem 4 (15 pts)
+
+### a) Divorce rate over time
+The official introduction of `divusa` data
+
+| Variable | Description |
+|---|---|
+| `year` | the year from 1920–1996 |
+| `divorce` | divorces per 1,000 women aged 15 or more |
+| `unemployed` | unemployment rate |
+| `femlab` | percent female participation in labor force aged 16+ |
+| `marriage` | marriages per 1,000 unmarried women aged 16+ |
+| `birth` | births per 1,000 women aged 15–44 |
+| `military` | military personnel per 1,000 population |
+
+```{r p4a}
+data(divusa)
+head(divusa)
+ggplot(divusa, aes(year, divorce)) +
+  geom_line(colour = "grey40") + geom_point(size = 1) + geom_smooth(method = "loess", se = FALSE, span = .3, colour = "firebrick") +
+  labs(x = "Year", y = "Divorces per 1,000 women aged 15+",
+       title = "U.S. divorce rate, 1920–1996")
+```
+
+The divorce rate is **not steady**. It rises overall, from about 8 per 1,000 in 1920 to a peak of about 23 around 1980, then declines slightly. 
+
+### b) Regression and the `year` coefficient
+
+```{r p4b}
+fit4 <- lm(divorce ~ year + unemployed + femlab + marriage + birth + military, data = divusa)
+summary(fit4)
+```
+
+The coefficient on `year` is **-0.20312**. Holding unemployment, female labor-force participation, marriage rate, birth rate and military size fixed, each additional year is associated with about 0.20 *fewer* divorces per 1,000 women aged 15+.
+
+This seems inconsistent with (a). My guess is that the difference may come from whether other variables are controlled for. The plot shows the overall trend in divorce rates over time, while the regression examines the relationship between year and divorce rate after controlling for other factors. Therefore, the two may show opposite results.
+
+### c) Correlated errors
+
+This is time series data, so the errors are likely autocorrelated. Some factors that affect divorce are not in the model, such as income level or someo other social features. And their effects in previous year may transfer to the next as well. Since they are left out of the model, their influence ends up in the errors.
+
+```{r p4c, fig.height=3.5}
+e <- resid(fit4)
+n <- length(e)
+par(mfrow = c(1, 2))
+plot(divusa$year, e, type = "b", xlab = "Year", ylab = "Residual",
+     main = "Residuals over years")
+abline(h = 0, lty = 2)
+plot(e[-n], e[-1], xlab = "Residual in year t", ylab = "Residual in year t+1",
+     main = "Residual vs. next residual")
+abline(h = 0, v = 0, lty = 2)
+par(mfrow = c(1, 1))
+```
+
+ **Conclusion:** the errors are strongly positively autocorrelated and the OLS error independence assumption fails, the ols result are not very reliable.
+
+### d) Formal test
+
+```{r p4d}
+dwtest(fit4)                 
+```
+
+The Durbin–Watson statistic is 0.37429, with a p-value of 2.2e-16. Thus, we reject the null hypothesis ($H_0$) of no autocorrelation and conclude that there is strong error autocorrelation in our model.
